@@ -84,11 +84,16 @@ export default function AgentChatter({ messages }: AgentChatterProps) {
             style={{ background: "rgba(0,0,0,0.6)", height: 220 }}
           >
             {messages.length === 0 ? (
-              <p className="mono text-slate-600 text-xs">
-                <span className="text-green-500 mr-1">$</span>
-                Waiting for agents to start
-                <span className="animate-blink text-green-400 ml-1">▋</span>
-              </p>
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="w-16 h-16 mb-2 animate-float">
+                  <img src="/mascot.png" alt="DebugPilot Mascot" className="w-full h-full object-contain animate-wave" />
+                </div>
+                <p className="mono justify-center text-slate-500 text-xs flex items-center gap-2">
+                  <span className="text-green-500">$</span>
+                  Waiting for agents to start
+                  <span className="animate-blink text-green-400">▋</span>
+                </p>
+              </div>
             ) : (
               messages.map((msg, i) => (
                 <div key={i} className="mono text-xs leading-5 flex gap-2">

@@ -241,9 +241,9 @@ export default function Dashboard() {
         style={{ background: "rgba(2,6,23,0.85)", backdropFilter: "blur(24px)", borderBottom: "1px solid rgba(255,255,255,0.07)", boxShadow: "0 1px 30px rgba(0,0,0,0.5)" }}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 shrink-0">
-            <div className="relative flex items-center justify-center w-9 h-9 rounded-xl"
-              style={{ background: "linear-gradient(135deg,rgba(0,212,255,0.2),rgba(124,58,237,0.2))", border: "1px solid rgba(0,212,255,0.35)", boxShadow: "0 0 16px rgba(0,212,255,0.2)" }}>
-              <Cpu className="w-4 h-4 text-cyan-400" />
+            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl"
+              style={{ background: "linear-gradient(135deg,rgba(0,212,255,0.1),rgba(124,58,237,0.1))", border: "1px solid rgba(0,212,255,0.25)", boxShadow: "0 0 16px rgba(0,212,255,0.15)" }}>
+              <img src="/mascot.png" alt="Logo" className="w-7 h-7 object-contain" />
               <span className="status-dot live absolute -top-1 -right-1" style={{ width: 7, height: 7 }} />
             </div>
             <div>
@@ -481,12 +481,6 @@ export default function Dashboard() {
                     </motion.div>
                   </AnimatePresence>
                 )}
-
-                {/* Agent Graph — shown below results */}
-                <div className="glass rounded-2xl p-4">
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Agent Graph</p>
-                  <AgentGraph status={graphStatus} />
-                </div>
               </div>
             </motion.div>
           )}

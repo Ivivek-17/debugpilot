@@ -164,11 +164,25 @@ body {
   100% { top: 100%; opacity: 0; }
 }
 
+@keyframes wave {
+  0%, 100% { transform: rotate(0deg); }
+  10% { transform: rotate(14deg); }
+  20% { transform: rotate(-8deg); }
+  30% { transform: rotate(14deg); }
+  40% { transform: rotate(-4deg); }
+  50% { transform: rotate(10deg); }
+  60% { transform: rotate(0deg); }
+}
+
 /* ─── Animated Classes ───────────────────────────────────────── */
-.animate-float     { animation: float 3s ease-in-out infinite; }
+.animate-float     { animation: float 6s ease-in-out infinite; }
 .animate-blink     { animation: blink 1.2s step-end infinite; }
 .animate-slide-up  { animation: slide-up 0.4s cubic-bezier(0.4,0,0.2,1) forwards; }
-.animate-spin-slow { animation: spin-slow 3s linear infinite; }
+.animate-spin-slow { animation: spin-slow 8s linear infinite; }
+.animate-wave {
+  animation: wave 2.5s infinite;
+  transform-origin: 70% 70%;
+}
 .animate-gradient  {
   background-size: 200% 200%;
   animation: gradient-x 4s ease infinite;
