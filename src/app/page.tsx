@@ -6,6 +6,7 @@ import { Play, Activity, Cpu, CheckCircle, FileText, AlertTriangle,
   ChevronRight, Upload, X, Copy } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
+import ReactMarkdown from "react-markdown";
 import AgentChatter, { ChatterMessage } from "@/components/AgentChatter";
 import HitlModal from "@/components/HitlModal";
 import type { AgentNodeStatus } from "@/components/AgentGraph";
@@ -336,42 +337,45 @@ export default function Dashboard() {
                   </button>
                 </div>
 
-                {/* Agent Graph */}
-                <div className="glass rounded-2xl p-4">
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Agent Graph</p>
-                  <AgentGraph status={graphStatus} />
-                </div>
+                {/* Agent Chatter — below log input on left panel */}
+                <AgentChatter messages={chatter} />
               </div>
 
               {/* RIGHT PANEL */}
               <div className="lg:col-span-8 flex flex-col gap-5">
 
-                {/* Loading state */}
+                {/* Loading state — with Agent Graph */}
                 {loading && !incident && (
-                  <div className="glass rounded-2xl p-10 flex flex-col items-center justify-center min-h-[300px] text-center">
-                    <div className="relative mb-6 animate-float">
-                      <div className="w-16 h-16 rounded-full border border-cyan-500/30 flex items-center justify-center"
+                  <div className="glass rounded-2xl p-8 flex flex-col items-center justify-center min-h-[340px] text-center">
+                    <div className="relative mb-4 animate-float">
+                      <div className="w-14 h-14 rounded-full border border-cyan-500/30 flex items-center justify-center"
                         style={{ boxShadow: "0 0 40px rgba(0,212,255,0.2)" }}>
-                        <div className="w-14 h-14 rounded-full border-t-2 border-cyan-400 animate-spin-slow absolute" />
-                        <Cpu className="w-6 h-6 text-cyan-400" />
+                        <div className="w-12 h-12 rounded-full border-t-2 border-cyan-400 animate-spin-slow absolute" />
+                        <Cpu className="w-5 h-5 text-cyan-400" />
                       </div>
                     </div>
                     <h3 className="text-base font-semibold text-slate-100 mb-1">Agents Processing</h3>
-                    <p className="text-sm text-slate-400 max-w-xs">Watch the chatter terminal and graph below for real-time agent updates.</p>
+                    <p className="text-xs text-slate-400 max-w-xs mb-5">Watch the chatter terminal and graph for real-time updates.</p>
+                    <div className="w-full">
+                      <AgentGraph status={graphStatus} />
+                    </div>
                   </div>
                 )}
 
-                {/* Empty state */}
+                {/* Empty state — with Agent Graph */}
                 {!loading && !incident && !hitlFixes && (
-                  <div className="glass rounded-2xl p-12 flex flex-col items-center justify-center min-h-[300px] text-center" style={{ borderStyle: "dashed" }}>
-                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
+                  <div className="glass rounded-2xl p-8 flex flex-col items-center justify-center min-h-[340px] text-center" style={{ borderStyle: "dashed" }}>
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3"
                       style={{ background: "rgba(0,212,255,0.06)", border: "1px solid rgba(0,212,255,0.15)" }}>
-                      <Terminal className="w-6 h-6 text-cyan-800" />
+                      <Terminal className="w-5 h-5 text-cyan-800" />
                     </div>
-                    <h3 className="text-sm font-semibold text-slate-400 mb-2">Awaiting Log Ingestion</h3>
-                    <p className="text-xs text-slate-500 max-w-xs leading-relaxed">
+                    <h3 className="text-sm font-semibold text-slate-400 mb-1">Awaiting Log Ingestion</h3>
+                    <p className="text-xs text-slate-500 max-w-xs leading-relaxed mb-5">
                       Paste logs on the left, optionally drop context files, then click <strong className="text-slate-300">Run AI Diagnosis</strong>.
                     </p>
+                    <div className="w-full">
+                      <AgentGraph status={graphStatus} />
+                    </div>
                     <div className="flex items-center gap-1 mt-4 text-xs text-slate-600 font-mono">
                       <span className="text-green-500">$</span>
                       <span>debugpilot analyze --logs ./server.log</span>
@@ -467,19 +471,22 @@ export default function Dashboard() {
                             </h3>
                             <span className="badge badge-blue">Auto-generated</span>
                           </div>
-                          <pre className="mono text-xs text-slate-300 leading-5 whitespace-pre-wrap overflow-y-auto max-h-[180px] p-3 rounded-xl"
+                          <div className="prose prose-invert prose-xs max-w-none overflow-y-auto max-h-[220px] p-3 rounded-xl text-xs leading-relaxed"
                             style={{ background: "rgba(0,212,255,0.04)", border: "1px solid rgba(0,212,255,0.12)" }}>
-                            {reportText || incident.report}
+                            <ReactMarkdown>{reportText || incident.report || ""}</ReactMarkdown>
                             {loading && <span className="animate-blink text-cyan-400">▋</span>}
-                          </pre>
+                          </div>
                         </div>
                       </div>
                     </motion.div>
                   </AnimatePresence>
                 )}
 
-                {/* Agent Chatter */}
-                <AgentChatter messages={chatter} />
+                {/* Agent Graph — shown below results */}
+                <div className="glass rounded-2xl p-4">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Agent Graph</p>
+                  <AgentGraph status={graphStatus} />
+                </div>
               </div>
             </motion.div>
           )}
