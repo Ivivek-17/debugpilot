@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Terminal, Circle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import DebugBot from "./DebugBot";
 
 export interface ChatterMessage {
   agent: string;
@@ -30,9 +31,10 @@ const TYPE_COLORS: Record<string, string> = {
 
 interface AgentChatterProps {
   messages: ChatterMessage[];
+  agentState: 'idle' | 'thinking' | 'triage' | 'db' | 'infra' | 'network' | 'critic' | 'success' | 'error';
 }
 
-export default function AgentChatter({ messages }: AgentChatterProps) {
+export default function AgentChatter({ messages, agentState }: AgentChatterProps) {
   const [collapsed, setCollapsed] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -48,13 +50,13 @@ export default function AgentChatter({ messages }: AgentChatterProps) {
 
       {/* Header */}
       <button
-        onClick={() => setCollapsed(c => !c)}
-        className="w-full flex items-center justify-between px-4 py-3 text-left cursor-pointer hover:bg-white/5 transition-colors"
+        onClick={() => setCollapsed((c) => !c)}
+        className="w-full flex items-center justify-between px-4 py-2 text-left cursor-pointer hover:bg-white/5 transition-colors"
         style={{ borderBottom: collapsed ? "none" : "1px solid rgba(255,255,255,0.06)" }}
       >
         <div className="flex items-center gap-2">
-          <Terminal className="w-4 h-4 text-cyan-400" />
-          <span className="text-sm font-semibold text-slate-200">Agent Chatter</span>
+          <DebugBot mode="terminal" agentState={agentState} size={44} />
+          <span className="mono text-sm font-semibold text-slate-200">Agent Chatter</span>
           {messages.length > 0 && (
             <span className="badge badge-blue">{messages.length}</span>
           )}
@@ -84,16 +86,11 @@ export default function AgentChatter({ messages }: AgentChatterProps) {
             style={{ background: "rgba(0,0,0,0.6)", height: 220 }}
           >
             {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <div className="w-16 h-16 mb-2 animate-float">
-                  <img src="/mascot.png" alt="DebugPilot Mascot" className="w-full h-full object-contain animate-wave" />
-                </div>
-                <p className="mono justify-center text-slate-500 text-xs flex items-center gap-2">
-                  <span className="text-green-500">$</span>
-                  Waiting for agents to start
-                  <span className="animate-blink text-green-400">▋</span>
-                </p>
-              </div>
+              <p className="mono text-slate-600 text-xs">
+                <span className="text-green-500 mr-1">$</span>
+                Waiting for agents to start
+                <span className="animate-blink text-green-400 ml-1">▋</span>
+              </p>
             ) : (
               messages.map((msg, i) => (
                 <div key={i} className="mono text-xs leading-5 flex gap-2">

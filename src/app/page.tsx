@@ -9,6 +9,7 @@ import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import AgentChatter, { ChatterMessage } from "@/components/AgentChatter";
 import HitlModal from "@/components/HitlModal";
+import DebugBot from "@/components/DebugBot";
 import type { AgentNodeStatus } from "@/components/AgentGraph";
 import type { Fix } from "@/lib/agents/types";
 
@@ -59,6 +60,7 @@ export default function Dashboard() {
   const [reportText,  setReportText ] = useState("");
   const [contextFiles, setContextFiles] = useState<Record<string, string>>({});
   const [isDragging,  setIsDragging ] = useState(false);
+  const [botState,    setBotState   ] = useState<"idle" | "thinking" | "triage" | "db" | "infra" | "network" | "critic" | "success" | "error">("idle");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef     = useRef<AbortController | null>(null);
 
@@ -141,9 +143,15 @@ export default function Dashboard() {
           try { event = JSON.parse(jsonStr); } catch { continue; }
 
           // ── Handle each SSE event type ───────────────
+          const agentToState: Record<string, typeof botState> = {
+            triage: 'triage', db_agent: 'db', infra_agent: 'infra',
+            network_agent: 'network', critic: 'critic', report: 'thinking'
+          };
+
           switch (event.type) {
 
             case "agent_start":
+              setBotState(agentToState[event.agent.toLowerCase()] ?? 'thinking');
               addChatter(event.agent, event.message, "info");
               if (event.agent === "Triage") setGraphNode("triage", "active");
               else if (event.agent?.includes("Agent") && event.agent !== "Critic" && event.agent !== "Report") {
@@ -169,6 +177,7 @@ export default function Dashboard() {
               break;
 
             case "hitl_required":
+              setBotState('critic');
               addChatter("System", "Agents exhausted all retries. Human intervention required.", "warn");
               setHitlFixes(event.fixes);
               setLoading(false);
@@ -179,12 +188,16 @@ export default function Dashboard() {
               break;
 
             case "complete":
+              setBotState('success');
+              setTimeout(() => setBotState('idle'), 2500);
               setIncident(event.incident);
               addChatter("System", "Pipeline complete. Incident stored.", "success");
               loadHistory();
               break;
 
             case "agent_error":
+              setBotState('error');
+              setTimeout(() => setBotState('idle'), 3000);
               addChatter(event.agent, `[System] ${event.message}. Falling back to cached heuristics...`, "error");
               if (event.agent === "Triage") setGraphNode("triage", "error");
               else if (event.agent?.includes("Agent")) setGraphStatus(prev => ({ ...prev, worker: "error" }));
@@ -243,7 +256,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-3 shrink-0">
             <div className="relative flex items-center justify-center w-10 h-10 rounded-xl"
               style={{ background: "linear-gradient(135deg,rgba(0,212,255,0.1),rgba(124,58,237,0.1))", border: "1px solid rgba(0,212,255,0.25)", boxShadow: "0 0 16px rgba(0,212,255,0.15)" }}>
-              <img src="/mascot.png" alt="Logo" className="w-7 h-7 object-contain" />
+              <DebugBot mode="nav" agentState="idle" />
               <span className="status-dot live absolute -top-1 -right-1" style={{ width: 7, height: 7 }} />
             </div>
             <div>
@@ -283,6 +296,10 @@ export default function Dashboard() {
 
                 {/* Log Input */}
                 <div className="glass rounded-2xl p-6 flex flex-col gap-4">
+                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', marginBottom: '16px' }}>
+                    <DebugBot mode="hero" agentState={botState} />
+                    <h1 className="text-xl font-bold tracking-tight gradient-text leading-none" style={{ marginTop: 12 }}>DebugPilot</h1>
+                  </div>
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <Activity className="w-4 h-4 text-violet-400" />
@@ -338,7 +355,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Agent Chatter — below log input on left panel */}
-                <AgentChatter messages={chatter} />
+                <AgentChatter messages={chatter} agentState={botState} />
               </div>
 
               {/* RIGHT PANEL */}
