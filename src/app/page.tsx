@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Play, Activity, Cpu, CheckCircle, FileText, AlertTriangle,
   Loader2, RefreshCw, Clock, Zap, Shield, Terminal, Database,
-  ChevronRight, Upload, X, Copy } from "lucide-react";
+  ChevronRight, Upload, X, Copy, LogOut, User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import AgentChatter, { ChatterMessage } from "@/components/AgentChatter";
 import HitlModal from "@/components/HitlModal";
 import DebugBot from "@/components/DebugBot";
+import Login from "@/components/Login";
 import type { AgentNodeStatus } from "@/components/AgentGraph";
 import type { Fix } from "@/lib/agents/types";
 
@@ -38,17 +39,40 @@ function getRiskClass(risk?: string) {
 
 function HeaderStat({ icon: Icon, label, value, color }: { icon: any; label: string; value: string; color: string }) {
   return (
-    <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg"
-      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+    <div className="hidden md:flex items-center gap-2 px-3 py-1.5"
+      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)" }}>
       <Icon className="w-3.5 h-3.5" style={{ color }} />
-      <span className="text-xs text-slate-400">{label}</span>
-      <span className="text-xs font-semibold" style={{ color }}>{value}</span>
+      <span className="text-xs" style={{ color: "var(--color-text-muted)", fontFamily: "var(--font-display)", letterSpacing: "0.05em", textTransform: "uppercase", fontSize: "0.6rem" }}>{label}</span>
+      <span className="text-xs font-semibold" style={{ color, fontFamily: "var(--font-display)" }}>{value}</span>
     </div>
   );
 }
 
 /* ──── Main Component ────────────────────────────────────────── */
 export default function Dashboard() {
+  /* ── Auth state ────────────────────────────────── */
+  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Hydrate auth from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("debugpilot_user");
+      if (stored) {
+        setUser(JSON.parse(stored));
+      }
+    } catch {}
+    setAuthLoading(false);
+  }, []);
+
+  const handleLogin = (u: { name: string; email: string }) => setUser(u);
+
+  const handleLogout = () => {
+    localStorage.removeItem("debugpilot_user");
+    setUser(null);
+  };
+
+  /* ── Core dashboard state ──────────────────────── */
   const [logs,        setLogs       ] = useState(DEFAULT_LOGS);
   const [loading,     setLoading    ] = useState(false);
   const [incident,    setIncident   ] = useState<any>(null);
@@ -64,17 +88,17 @@ export default function Dashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef     = useRef<AbortController | null>(null);
 
-  /* ── Chatter helper ─────────────────────────────────── */
+  /* ── Chatter helper ─────────────────────────────── */
   const addChatter = useCallback((agent: string, text: string, type: ChatterMessage["type"]) => {
     setChatter(prev => [...prev.slice(-199), { agent, text, type, ts: Date.now() }]);
   }, []);
 
-  /* ── Graph helper ───────────────────────────────────── */
+  /* ── Graph helper ───────────────────────────────── */
   const setGraphNode = useCallback((node: keyof AgentNodeStatus, value: any) => {
     setGraphStatus(prev => ({ ...prev, [node]: value }));
   }, []);
 
-  /* ── File drop / upload ─────────────────────────────── */
+  /* ── File drop / upload ─────────────────────────── */
   const handleFiles = (files: FileList | null) => {
     if (!files) return;
     Array.from(files).forEach(file => {
@@ -91,7 +115,7 @@ export default function Dashboard() {
     setContextFiles(prev => { const next = { ...prev }; delete next[name]; return next; });
   };
 
-  /* ── SSE Runner ─────────────────────────────────────── */
+  /* ── SSE Runner ─────────────────────────────────── */
   const runPipeline = async (hintOverride?: string) => {
     setLoading(true);
     setIncident(null);
@@ -142,14 +166,12 @@ export default function Dashboard() {
           let event: any;
           try { event = JSON.parse(jsonStr); } catch { continue; }
 
-          // ── Handle each SSE event type ───────────────
           const agentToState: Record<string, typeof botState> = {
             triage: 'triage', db_agent: 'db', infra_agent: 'infra',
             network_agent: 'network', critic: 'critic', report: 'thinking'
           };
 
           switch (event.type) {
-
             case "agent_start":
               setBotState(agentToState[event.agent.toLowerCase()] ?? 'thinking');
               addChatter(event.agent, event.message, "info");
@@ -236,6 +258,21 @@ export default function Dashboard() {
   };
 
   /* ──────── RENDER ──────── */
+
+  // Auth loading state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--color-bg-base)" }}>
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--color-primary)" }} />
+      </div>
+    );
+  }
+
+  // Login gate
+  if (!user) {
+    return <Login onLogin={handleLogin} />;
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
 
@@ -251,34 +288,53 @@ export default function Dashboard() {
 
       {/* ── NAVBAR ── */}
       <header className="sticky top-0 z-40 w-full"
-        style={{ background: "rgba(2,6,23,0.85)", backdropFilter: "blur(24px)", borderBottom: "1px solid rgba(255,255,255,0.07)", boxShadow: "0 1px 30px rgba(0,0,0,0.5)" }}>
+        style={{ background: "rgba(13,17,42,0.88)", backdropFilter: "blur(24px)", borderBottom: "1px solid var(--color-border)", boxShadow: "0 1px 30px rgba(0,0,0,0.5)" }}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 shrink-0">
-            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl"
-              style={{ background: "linear-gradient(135deg,rgba(0,212,255,0.1),rgba(124,58,237,0.1))", border: "1px solid rgba(0,212,255,0.25)", boxShadow: "0 0 16px rgba(0,212,255,0.15)" }}>
+            <div className="relative flex items-center justify-center w-10 h-10"
+              style={{ background: "linear-gradient(135deg,rgba(0,240,255,0.08),rgba(124,58,237,0.06))", border: "1px solid rgba(0,240,255,0.20)", borderRadius: "var(--radius-md)", boxShadow: "0 0 16px rgba(0,240,255,0.10)" }}>
               <DebugBot mode="nav" agentState="idle" />
               <span className="status-dot live absolute -top-1 -right-1" style={{ width: 7, height: 7 }} />
             </div>
             <div>
-              <h1 className="text-lg font-bold tracking-tight gradient-text leading-none">DebugPilot</h1>
-              <p className="text-[10px] text-slate-500 mt-0.5 leading-none">Enterprise Multi-Agent SRE Copilot</p>
+              <h1 className="text-lg font-bold tracking-tight gradient-text leading-none" style={{ fontFamily: "var(--font-display)" }}>DebugPilot</h1>
+              <p className="leading-none mt-0.5" style={{ fontSize: "0.55rem", color: "var(--color-text-muted)", letterSpacing: "0.1em", textTransform: "uppercase", fontFamily: "var(--font-display)" }}>Enterprise multi-agent SRE copilot</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <HeaderStat icon={Zap}      label="Agents"  value="6 Active"    color="#00D4FF" />
+            <HeaderStat icon={Zap}      label="Agents"  value="6 Active"    color="#00f0ff" />
             <HeaderStat icon={Database} label="Model"   value="Oxlo API"    color="#7C3AED" />
             <HeaderStat icon={Shield}   label="Status"  value="Operational" color="#10B981" />
           </div>
-          <nav className="flex items-center gap-1 p-1 rounded-full"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
-            {[{ id: "run", label: "Analysis", icon: Terminal }, { id: "history", label: "History", icon: Clock }].map(({ id, label, icon: Icon }) => (
-              <button key={id} id={`tab-${id}`}
-                onClick={() => { setActiveTab(id); if (id === "history") loadHistory(); }}
-                className={`seg-pill flex items-center gap-1.5 ${activeTab === id ? "seg-pill-active" : "seg-pill-inactive"}`}>
-                <Icon className="w-3.5 h-3.5" />{label}
+          <div className="flex items-center gap-3">
+            <nav className="flex items-center gap-1 p-1"
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)" }}>
+              {[{ id: "run", label: "Analysis", icon: Terminal }, { id: "history", label: "History", icon: Clock }].map(({ id, label, icon: Icon }) => (
+                <button key={id} id={`tab-${id}`}
+                  onClick={() => { setActiveTab(id); if (id === "history") loadHistory(); }}
+                  className={`seg-pill flex items-center gap-1.5 ${activeTab === id ? "seg-pill-active" : "seg-pill-inactive"}`}>
+                  <Icon className="w-3.5 h-3.5" />{label}
+                </button>
+              ))}
+            </nav>
+
+            {/* User badge + Logout */}
+            <div className="hidden md:flex items-center gap-2 pl-3" style={{ borderLeft: "1px solid var(--color-border)" }}>
+              <div className="flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5" style={{ color: "var(--color-primary)" }} />
+                <span className="text-xs font-medium" style={{ color: "var(--color-text-secondary)", fontFamily: "var(--font-display)" }}>{user.name}</span>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-1 px-2 py-1 cursor-pointer transition-colors"
+                style={{ background: "rgba(255,0,85,0.08)", border: "1px solid rgba(255,0,85,0.2)", borderRadius: "var(--radius-sm)", color: "#ff6688", fontSize: "0.65rem", fontFamily: "var(--font-display)", letterSpacing: "0.05em", textTransform: "uppercase" }}
+                title="Sign out"
+              >
+                <LogOut className="w-3 h-3" />
+                Logout
               </button>
-            ))}
-          </nav>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -295,18 +351,18 @@ export default function Dashboard() {
               <div className="lg:col-span-4 flex flex-col gap-4">
 
                 {/* Log Input */}
-                <div className="glass rounded-2xl p-6 flex flex-col gap-4">
+                <div className="glass p-6 flex flex-col gap-4" style={{ borderRadius: "var(--radius-xl)" }}>
                   <div style={{ display:'flex', flexDirection:'column', alignItems:'center', marginBottom: '16px' }}>
                     <DebugBot mode="hero" agentState={botState} />
-                    <h1 className="text-xl font-bold tracking-tight gradient-text leading-none" style={{ marginTop: 12 }}>DebugPilot</h1>
+                    <h1 className="text-xl font-bold tracking-tight gradient-text leading-none" style={{ marginTop: 12, fontFamily: "var(--font-display)" }}>DebugPilot</h1>
                   </div>
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <Activity className="w-4 h-4 text-violet-400" />
-                      <h2 className="font-semibold text-sm text-slate-100">Raw Log Ingestion</h2>
+                      <Activity className="w-4 h-4" style={{ color: "var(--color-accent)" }} />
+                      <h2 className="font-semibold text-sm" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-display)" }}>Raw log ingestion</h2>
                     </div>
-                    <div className="h-px w-full mt-2 mb-3" style={{ background: "linear-gradient(90deg,rgba(124,58,237,0.5),transparent)" }} />
-                    <p className="text-xs text-slate-400 leading-relaxed">Paste failing server logs. The Triage agent routes to the right specialist automatically.</p>
+                    <div className="h-px w-full mt-2 mb-3" style={{ background: "linear-gradient(90deg,rgba(0,240,255,0.3),transparent)" }} />
+                    <p className="text-xs leading-relaxed" style={{ color: "var(--color-text-muted)" }}>Paste failing server logs. The Triage agent routes to the right specialist automatically.</p>
                   </div>
 
                   <textarea id="log-input" value={logs} onChange={e => setLogs(e.target.value)}
@@ -315,19 +371,20 @@ export default function Dashboard() {
 
                   {/* Context Dropzone */}
                   <div>
-                    <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold mb-2">Context Injection (optional)</p>
+                    <p style={{ fontSize: "0.6rem", color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600, fontFamily: "var(--font-display)", marginBottom: "0.5rem" }}>Context injection (optional)</p>
                     <div
                       onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
                       onDragLeave={() => setIsDragging(false)}
                       onDrop={e => { e.preventDefault(); setIsDragging(false); handleFiles(e.dataTransfer.files); }}
                       onClick={() => fileInputRef.current?.click()}
-                      className="rounded-xl p-3 text-center cursor-pointer transition-all"
+                      className="p-3 text-center cursor-pointer transition-all"
                       style={{
-                        border: `1px dashed ${isDragging ? "rgba(0,212,255,0.6)" : "rgba(255,255,255,0.12)"}`,
-                        background: isDragging ? "rgba(0,212,255,0.06)" : "rgba(0,0,0,0.2)",
+                        border: `1px dashed ${isDragging ? "rgba(0,240,255,0.5)" : "var(--color-outline)"}`,
+                        background: isDragging ? "rgba(0,240,255,0.04)" : "rgba(0,0,0,0.2)",
+                        borderRadius: "var(--radius-md)",
                       }}>
-                      <Upload className="w-4 h-4 text-slate-600 mx-auto mb-1" />
-                      <p className="text-xs text-slate-500">Drop <span className="text-slate-400">docker-compose.yml</span>, <span className="text-slate-400">package.json</span>, schema</p>
+                      <Upload className="w-4 h-4 mx-auto mb-1" style={{ color: "var(--color-text-muted)" }} />
+                      <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>Drop <span style={{ color: "var(--color-text-secondary)" }}>docker-compose.yml</span>, <span style={{ color: "var(--color-text-secondary)" }}>package.json</span>, schema</p>
                       <input ref={fileInputRef} type="file" multiple accept=".json,.yml,.yaml,.prisma,.env,.txt,.env.example"
                         className="hidden" onChange={e => handleFiles(e.target.files)} />
                     </div>
@@ -335,8 +392,8 @@ export default function Dashboard() {
                     {Object.keys(contextFiles).length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-2">
                         {Object.keys(contextFiles).map(name => (
-                          <div key={name} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px]"
-                            style={{ background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.2)", color: "#7DD3FC" }}>
+                          <div key={name} className="flex items-center gap-1 px-2 py-1 text-[10px]"
+                            style={{ background: "var(--color-primary-dim)", border: "1px solid rgba(0,240,255,0.15)", color: "#7DD3FC", borderRadius: "var(--radius-sm)" }}>
                             {name}
                             <button onClick={() => removeContextFile(name)} className="ml-0.5 hover:text-red-400 transition-colors cursor-pointer">
                               <X className="w-2.5 h-2.5" />
@@ -348,9 +405,10 @@ export default function Dashboard() {
                   </div>
 
                   <button id="run-btn" onClick={() => runPipeline()} disabled={loading || !logs.trim()}
-                    className="btn-shimmer w-full text-slate-900 font-semibold py-3 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed transition-transform active:scale-95 hover:scale-[1.01]">
+                    className="btn-shimmer w-full font-semibold py-3 px-4 flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed transition-transform active:scale-95 hover:scale-[1.01]"
+                    style={{ color: "var(--color-primary-on)", fontFamily: "var(--font-display)", letterSpacing: "0.04em" }}>
                     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                    {loading ? "Pipeline Processing…" : "Run AI Diagnosis"}
+                    {loading ? "Pipeline processing…" : "Run AI diagnosis"}
                   </button>
                 </div>
 
@@ -363,16 +421,16 @@ export default function Dashboard() {
 
                 {/* Loading state — with Agent Graph */}
                 {loading && !incident && (
-                  <div className="glass rounded-2xl p-8 flex flex-col items-center justify-center min-h-[340px] text-center">
+                  <div className="glass p-8 flex flex-col items-center justify-center min-h-[340px] text-center" style={{ borderRadius: "var(--radius-xl)" }}>
                     <div className="relative mb-4 animate-float">
-                      <div className="w-14 h-14 rounded-full border border-cyan-500/30 flex items-center justify-center"
-                        style={{ boxShadow: "0 0 40px rgba(0,212,255,0.2)" }}>
-                        <div className="w-12 h-12 rounded-full border-t-2 border-cyan-400 animate-spin-slow absolute" />
-                        <Cpu className="w-5 h-5 text-cyan-400" />
+                      <div className="w-14 h-14 flex items-center justify-center"
+                        style={{ border: "1px solid rgba(0,240,255,0.25)", borderRadius: "var(--radius-md)", boxShadow: "0 0 40px rgba(0,240,255,0.15)" }}>
+                        <div className="w-12 h-12 border-t-2 animate-spin-slow absolute" style={{ borderColor: "var(--color-primary)", borderRadius: "50%" }} />
+                        <Cpu className="w-5 h-5" style={{ color: "var(--color-primary)" }} />
                       </div>
                     </div>
-                    <h3 className="text-base font-semibold text-slate-100 mb-1">Agents Processing</h3>
-                    <p className="text-xs text-slate-400 max-w-xs mb-5">Watch the chatter terminal and graph for real-time updates.</p>
+                    <h3 className="text-base font-semibold mb-1" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-display)" }}>Agents processing</h3>
+                    <p className="text-xs max-w-xs mb-5" style={{ color: "var(--color-text-muted)" }}>Watch the chatter terminal and graph for real-time updates.</p>
                     <div className="w-full">
                       <AgentGraph status={graphStatus} />
                     </div>
@@ -381,22 +439,22 @@ export default function Dashboard() {
 
                 {/* Empty state — with Agent Graph */}
                 {!loading && !incident && !hitlFixes && (
-                  <div className="glass rounded-2xl p-8 flex flex-col items-center justify-center min-h-[340px] text-center" style={{ borderStyle: "dashed" }}>
-                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3"
-                      style={{ background: "rgba(0,212,255,0.06)", border: "1px solid rgba(0,212,255,0.15)" }}>
-                      <Terminal className="w-5 h-5 text-cyan-800" />
+                  <div className="glass p-8 flex flex-col items-center justify-center min-h-[340px] text-center" style={{ borderRadius: "var(--radius-xl)", borderStyle: "dashed" }}>
+                    <div className="w-12 h-12 flex items-center justify-center mb-3"
+                      style={{ background: "rgba(0,240,255,0.04)", border: "1px solid rgba(0,240,255,0.12)", borderRadius: "var(--radius-md)" }}>
+                      <Terminal className="w-5 h-5" style={{ color: "rgba(0,240,255,0.4)" }} />
                     </div>
-                    <h3 className="text-sm font-semibold text-slate-400 mb-1">Awaiting Log Ingestion</h3>
-                    <p className="text-xs text-slate-500 max-w-xs leading-relaxed mb-5">
-                      Paste logs on the left, optionally drop context files, then click <strong className="text-slate-300">Run AI Diagnosis</strong>.
+                    <h3 className="text-sm font-semibold mb-1" style={{ color: "var(--color-text-secondary)", fontFamily: "var(--font-display)" }}>Awaiting log ingestion</h3>
+                    <p className="text-xs max-w-xs leading-relaxed mb-5" style={{ color: "var(--color-text-muted)" }}>
+                      Paste logs on the left, optionally drop context files, then click <strong style={{ color: "var(--color-text-primary)" }}>Run AI Diagnosis</strong>.
                     </p>
                     <div className="w-full">
                       <AgentGraph status={graphStatus} />
                     </div>
-                    <div className="flex items-center gap-1 mt-4 text-xs text-slate-600 font-mono">
-                      <span className="text-green-500">$</span>
+                    <div className="flex items-center gap-1 mt-4 text-xs font-mono" style={{ color: "var(--color-text-muted)" }}>
+                      <span style={{ color: "var(--color-success)" }}>$</span>
                       <span>debugpilot analyze --logs ./server.log</span>
-                      <span className="animate-blink text-green-400 ml-1">▋</span>
+                      <span className="animate-blink ml-1" style={{ color: "var(--color-primary)" }}>▋</span>
                     </div>
                   </div>
                 )}
@@ -409,47 +467,47 @@ export default function Dashboard() {
                       {/* Domain badge */}
                       {incident.domain && (
                         <div className="flex items-center gap-2">
-                          <span className="text-xs text-slate-500">Routed to:</span>
+                          <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>Routed to:</span>
                           <span className="badge badge-blue">{incident.domain.toUpperCase()}_Agent</span>
                           {incident.triage?.confidence && <span className="badge badge-violet">{incident.triage.confidence} confidence</span>}
                         </div>
                       )}
 
                       {/* Root Cause / Triage */}
-                      <div className="glass rounded-2xl p-6" style={{ borderLeft: "3px solid var(--color-danger)", boxShadow: "0 0 30px rgba(239,68,68,0.08)" }}>
+                      <div className="glass p-6" style={{ borderRadius: "var(--radius-xl)", borderLeft: "3px solid var(--color-danger)", boxShadow: "0 0 30px rgba(255,0,85,0.06)" }}>
                         <div className="flex items-center justify-between mb-4">
-                          <h3 className="font-semibold flex items-center gap-2 text-slate-100">
-                            <AlertTriangle className="w-4 h-4 text-red-400" />Root Cause Diagnosis
+                          <h3 className="font-semibold flex items-center gap-2" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-display)" }}>
+                            <AlertTriangle className="w-4 h-4" style={{ color: "var(--color-danger)" }} />Root cause diagnosis
                           </h3>
                           <span className="badge badge-danger">Critical</span>
                         </div>
-                        <p className="text-sm text-slate-300 leading-relaxed">
+                        <p className="text-sm leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
                           {incident.triage?.summary || incident.diagnosis?.root_cause || JSON.stringify(incident.triage ?? incident.diagnosis)}
                         </p>
                       </div>
 
                       {/* Proposed Fixes */}
                       {Array.isArray(incident.fixes) && incident.fixes.length > 0 && (
-                        <div className="glass rounded-2xl p-6" style={{ borderLeft: "3px solid var(--color-warning)" }}>
+                        <div className="glass p-6" style={{ borderRadius: "var(--radius-xl)", borderLeft: "3px solid var(--color-warning)" }}>
                           <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-semibold flex items-center gap-2 text-slate-100">
-                              <RefreshCw className="w-4 h-4 text-amber-400" />Proposed Fixes
+                            <h3 className="font-semibold flex items-center gap-2" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-display)" }}>
+                              <RefreshCw className="w-4 h-4" style={{ color: "var(--color-warning)" }} />Proposed fixes
                             </h3>
-                            <span className="text-xs text-slate-500">Worker Agent</span>
+                            <span className="text-xs" style={{ color: "var(--color-text-muted)", fontFamily: "var(--font-display)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Worker agent</span>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             {incident.fixes.map((fix: Fix, idx: number) => (
                               <motion.div key={idx} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.08 }}
-                                className="rounded-xl p-4" style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(245,158,11,0.15)" }}>
+                                className="p-4" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(245,158,11,0.12)", borderRadius: "var(--radius-md)" }}>
                                 <div className="flex items-start justify-between gap-2 mb-2">
-                                  <span className="mono text-xs text-amber-400/50 font-bold">#{idx + 1}</span>
-                                  <h4 className="font-semibold text-amber-100 text-sm flex-1 leading-snug">{fix.title}</h4>
+                                  <span className="mono text-xs font-bold" style={{ color: "rgba(245,158,11,0.4)" }}>#{idx + 1}</span>
+                                  <h4 className="font-semibold text-sm flex-1 leading-snug" style={{ color: "#fde68a", fontFamily: "var(--font-display)" }}>{fix.title}</h4>
                                 </div>
                                 <span className={getRiskClass(fix.risk_level)}>{fix.risk_level} Risk</span>
-                                <p className="text-xs text-slate-400 mt-2 leading-relaxed">{fix.description}</p>
+                                <p className="text-xs mt-2 leading-relaxed" style={{ color: "var(--color-text-muted)" }}>{fix.description}</p>
                                 {fix.cli_command && (
-                                  <pre className="mono text-[10px] text-green-400 mt-2 p-2 rounded-lg overflow-x-auto"
-                                    style={{ background: "rgba(0,0,0,0.4)" }}>{fix.cli_command}</pre>
+                                  <pre className="mono text-[10px] mt-2 p-2 overflow-x-auto"
+                                    style={{ color: "#4ADE80", background: "rgba(0,0,0,0.4)", borderRadius: "var(--radius-sm)" }}>{fix.cli_command}</pre>
                                 )}
                               </motion.div>
                             ))}
@@ -459,20 +517,20 @@ export default function Dashboard() {
 
                       {/* Selected Fix + Report */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div className="glass rounded-2xl p-6" style={{ borderLeft: "3px solid var(--color-success)" }}>
+                        <div className="glass p-6" style={{ borderRadius: "var(--radius-xl)", borderLeft: "3px solid var(--color-success)" }}>
                           <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-semibold flex items-center gap-2 text-slate-100">
-                              <CheckCircle className="w-4 h-4 text-emerald-400" />Selected Fix
+                            <h3 className="font-semibold flex items-center gap-2" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-display)" }}>
+                              <CheckCircle className="w-4 h-4" style={{ color: "var(--color-success)" }} />Selected fix
                             </h3>
-                            <span className="text-xs text-slate-500">Critic Approved</span>
+                            <span className="text-xs" style={{ color: "var(--color-text-muted)", fontFamily: "var(--font-display)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Critic approved</span>
                           </div>
-                          <div className="rounded-xl p-4" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.25)" }}>
-                            <h4 className="font-bold text-emerald-300 text-sm mb-2">{incident.selectedFix?.selected_fix_title || "N/A"}</h4>
-                            <p className="text-xs text-emerald-100/70 leading-relaxed">{incident.selectedFix?.reason}</p>
+                          <div className="p-4" style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.20)", borderRadius: "var(--radius-md)" }}>
+                            <h4 className="font-bold text-sm mb-2" style={{ color: "#6ee7b7", fontFamily: "var(--font-display)" }}>{incident.selectedFix?.selected_fix_title || "N/A"}</h4>
+                            <p className="text-xs leading-relaxed" style={{ color: "rgba(16,185,129,0.7)" }}>{incident.selectedFix?.reason}</p>
                             {incident.selectedFix?.warnings?.length > 0 && (
                               <div className="mt-3 space-y-1">
                                 {incident.selectedFix.warnings.map((w: string, i: number) => (
-                                  <p key={i} className="text-[10px] text-amber-300/80 flex items-start gap-1">
+                                  <p key={i} className="text-[10px] flex items-start gap-1" style={{ color: "rgba(245,158,11,0.7)" }}>
                                     <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />{w}
                                   </p>
                                 ))}
@@ -481,17 +539,17 @@ export default function Dashboard() {
                           </div>
                         </div>
 
-                        <div className="glass rounded-2xl p-6" style={{ borderLeft: "3px solid var(--color-primary)" }}>
+                        <div className="glass p-6" style={{ borderRadius: "var(--radius-xl)", borderLeft: "3px solid var(--color-primary)" }}>
                           <div className="flex items-center justify-between mb-4">
-                            <h3 className="font-semibold flex items-center gap-2 text-slate-100">
-                              <FileText className="w-4 h-4 text-cyan-400" />Incident Report
+                            <h3 className="font-semibold flex items-center gap-2" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-display)" }}>
+                              <FileText className="w-4 h-4" style={{ color: "var(--color-primary)" }} />Incident report
                             </h3>
                             <span className="badge badge-blue">Auto-generated</span>
                           </div>
-                          <div className="prose prose-invert prose-xs max-w-none overflow-y-auto max-h-[220px] p-3 rounded-xl text-xs leading-relaxed"
-                            style={{ background: "rgba(0,212,255,0.04)", border: "1px solid rgba(0,212,255,0.12)" }}>
+                          <div className="prose prose-invert prose-xs max-w-none overflow-y-auto max-h-[220px] p-3 text-xs leading-relaxed"
+                            style={{ background: "rgba(0,240,255,0.03)", border: "1px solid rgba(0,240,255,0.08)", borderRadius: "var(--radius-md)" }}>
                             <ReactMarkdown>{reportText || incident.report || ""}</ReactMarkdown>
-                            {loading && <span className="animate-blink text-cyan-400">▋</span>}
+                            {loading && <span className="animate-blink" style={{ color: "var(--color-primary)" }}>▋</span>}
                           </div>
                         </div>
                       </div>
@@ -505,10 +563,10 @@ export default function Dashboard() {
           {/* ── HISTORY TAB ── */}
           {activeTab === "history" && (
             <motion.div key="history" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
-              <div className="glass rounded-2xl overflow-hidden">
-                <div className="px-6 py-5 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-                  <h2 className="text-base font-semibold flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-cyan-400" />Incident History
+              <div className="glass overflow-hidden" style={{ borderRadius: "var(--radius-xl)" }}>
+                <div className="px-6 py-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                  <h2 className="text-base font-semibold flex items-center gap-2" style={{ fontFamily: "var(--font-display)" }}>
+                    <Clock className="w-4 h-4" style={{ color: "var(--color-primary)" }} />Incident history
                   </h2>
                   <span className="badge badge-blue">{history.length} records</span>
                 </div>
@@ -520,16 +578,16 @@ export default function Dashboard() {
                     <tbody>
                       {history.length > 0 ? history.map((inc: any) => (
                         <tr key={inc.id}>
-                          <td><span className="mono text-slate-400 text-xs">{new Date(inc.timestamp).toLocaleString()}</span></td>
+                          <td><span className="mono text-xs" style={{ color: "var(--color-text-secondary)" }}>{new Date(inc.timestamp).toLocaleString()}</span></td>
                           <td><span className="badge badge-blue">{(inc.domain || "unknown").toUpperCase()}</span></td>
-                          <td><span className="text-slate-300 text-sm max-w-xs block truncate">{inc.triage?.summary || inc.diagnosis?.root_cause || "Unknown"}</span></td>
-                          <td><span className="text-emerald-400 text-sm max-w-xs block truncate">{inc.selectedFix?.selected_fix_title || "Unknown"}</span></td>
+                          <td><span className="text-sm max-w-xs block truncate" style={{ color: "var(--color-text-secondary)" }}>{inc.triage?.summary || inc.diagnosis?.root_cause || "Unknown"}</span></td>
+                          <td><span className="text-sm max-w-xs block truncate" style={{ color: "var(--color-success)" }}>{inc.selectedFix?.selected_fix_title || "Unknown"}</span></td>
                           <td><span className={`badge ${inc.selectedFix?.risk_level === "Low" ? "badge-success" : inc.selectedFix?.risk_level === "High" ? "badge-danger" : "badge-warning"}`}>{inc.selectedFix?.risk_level || "Medium"}</span></td>
                         </tr>
                       )) : (
-                        <tr><td colSpan={5} className="text-center py-16 text-slate-500">
+                        <tr><td colSpan={5} className="text-center py-16" style={{ color: "var(--color-text-muted)" }}>
                           <div className="flex flex-col items-center gap-3">
-                            <Clock className="w-8 h-8 text-slate-700" />
+                            <Clock className="w-8 h-8" style={{ color: "var(--color-text-muted)", opacity: 0.3 }} />
                             <p>No incidents recorded yet.</p>
                           </div>
                         </td></tr>
@@ -544,9 +602,9 @@ export default function Dashboard() {
         </AnimatePresence>
       </main>
 
-      <footer className="mt-auto py-5 px-6 text-center" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-        <p className="text-xs text-slate-600">
-          DebugPilot — Enterprise Multi-Agent SRE Copilot &nbsp;·&nbsp; Powered by <span className="text-cyan-700">Oxlo API</span>
+      <footer className="mt-auto py-5 px-6 text-center" style={{ borderTop: "1px solid var(--color-border)" }}>
+        <p className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+          DebugPilot — Enterprise multi-agent SRE copilot &nbsp;·&nbsp; Powered by <span style={{ color: "rgba(0,240,255,0.5)" }}>Oxlo API</span>
         </p>
       </footer>
     </div>
