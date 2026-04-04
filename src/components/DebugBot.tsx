@@ -242,7 +242,7 @@ export default function DebugBot({ mode, agentState, size }: DebugBotProps) {
 
       // Shaking (error state)
       if (isShaking.current) {
-        owlGroup.position.x = Math.sin(t * 18) * 0.1;
+        owlGroup.position.x = Math.sin(t * 18) * 0.7;
       } else {
         owlGroup.position.x *= 0.9; // smooth return
       }

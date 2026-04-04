@@ -1,15 +1,18 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Play, Activity, Cpu, CheckCircle, FileText, AlertTriangle,
+import {
+  Play, Activity, Cpu, CheckCircle, FileText, AlertTriangle,
   Loader2, RefreshCw, Clock, Zap, Shield, Terminal, Database,
-  ChevronRight, Upload, X, Copy, LogOut, User } from "lucide-react";
+  ChevronRight, Upload, X, Copy, LogOut, User, MessageSquare, ChevronDown, Download
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 import ReactMarkdown from "react-markdown";
 import AgentChatter, { ChatterMessage } from "@/components/AgentChatter";
 import HitlModal from "@/components/HitlModal";
 import DebugBot from "@/components/DebugBot";
+import AnomalyGraph from "@/components/AnomalyGraph";
 import Login from "@/components/Login";
 import type { AgentNodeStatus } from "@/components/AgentGraph";
 import type { Fix } from "@/lib/agents/types";
@@ -17,12 +20,33 @@ import type { Fix } from "@/lib/agents/types";
 // Lazy-load React Flow to avoid SSR issues
 const AgentGraph = dynamic(() => import("@/components/AgentGraph"), { ssr: false });
 
-/* ──── Default logs ──────────────────────────────────────────── */
-const DEFAULT_LOGS = `[ERROR] 2026-03-27T17:02:56Z - Service 'payment-gateway' failed to start.
+const DEMO_SCENARIOS = {
+  payment_timeout: `[ERROR] 2026-03-27T17:02:56Z - Service 'payment-gateway' failed to start.
 [FATAL] Error: Redis Connection Timeout after 5000ms.
 [INFO] Attempting to reconnect (1/3)...
 [ERROR] Reconnection failed.
-[WARN] Request to /api/checkout from IP 192.168.1.5 aborted - 503 Service Unavailable`;
+[WARN] Request to /api/checkout from IP 192.168.1.5 aborted - 503 Service Unavailable`,
+  oom_crash: `[FATAL] 2026-04-01T12:00:00Z - Kernel panic - Out of memory and no killable processes...
+[ERROR] node process crashed due to OOMkiller.
+[WARN] Healthcheck failed for service 'analytics-worker'.`,
+  network_fail: `[ERROR] 2026-04-02T08:15:22Z - Connection refused: api.internal.company.com:443
+[WARN] Retrying request (attempt 1/5)...
+[ERROR] All retries failed. Timeout.`,
+  database_deadlock: `[ERROR] 2026-04-03T09:30:11Z - Transaction ID 94821a failed.
+[FATAL] PostgreSQL Error 40P01: deadlock detected
+[INFO] Detail: Process 184 waits for ShareLock on transaction 821; blocked by process 211.
+[WARN] Rolling back transaction. User checkout failed.`,
+  auth_service_down: `[ERROR] 2026-04-03T14:45:00Z - AuthMiddleware check failed.
+[ERROR] JwtValidationException: Unable to fetch public key from https://auth.internal/jwks
+[WARN] 502 Bad Gateway response from Auth subsystem.
+[ERROR] Dropped 150 incoming requests with 401 Unauthorized.`,
+  memory_leak: `[WARN] 2026-04-04T07:10:00Z - V8 Heap usage at 85% (1.7GB / 2.0GB)
+[WARN] 2026-04-04T07:15:00Z - Long GC pause detected (1200ms). Performance degraded.
+[WARN] 2026-04-04T07:18:00Z - V8 Heap usage at 95% (1.9GB / 2.0GB)
+[FATAL] 2026-04-04T07:20:00Z - JavaScript heap out of memory. Exiting...`
+};
+
+const DEFAULT_LOGS = DEMO_SCENARIOS.payment_timeout;
 
 const IDLE_GRAPH: AgentNodeStatus = {
   triage: "idle", worker: "idle", workerLabel: "INFRA_Agent",
@@ -32,7 +56,7 @@ const IDLE_GRAPH: AgentNodeStatus = {
 /* ──── Small helpers ─────────────────────────────────────────── */
 function getRiskClass(risk?: string) {
   const r = (risk || "medium").toLowerCase();
-  if (r === "low")  return "badge badge-success";
+  if (r === "low") return "badge badge-success";
   if (r === "high") return "badge badge-danger";
   return "badge badge-warning";
 }
@@ -61,7 +85,7 @@ export default function Dashboard() {
       if (stored) {
         setUser(JSON.parse(stored));
       }
-    } catch {}
+    } catch { }
     setAuthLoading(false);
   }, []);
 
@@ -73,20 +97,70 @@ export default function Dashboard() {
   };
 
   /* ── Core dashboard state ──────────────────────── */
-  const [logs,        setLogs       ] = useState(DEFAULT_LOGS);
-  const [loading,     setLoading    ] = useState(false);
-  const [incident,    setIncident   ] = useState<any>(null);
-  const [history,     setHistory    ] = useState<any[]>([]);
-  const [activeTab,   setActiveTab  ] = useState("run");
-  const [chatter,     setChatter    ] = useState<ChatterMessage[]>([]);
+  const [logs, setLogs] = useState(DEFAULT_LOGS);
+  const [loading, setLoading] = useState(false);
+  const [incident, setIncident] = useState<any>(null);
+  const [history, setHistory] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState("run");
+  const [chatter, setChatter] = useState<ChatterMessage[]>([]);
   const [graphStatus, setGraphStatus] = useState<AgentNodeStatus>(IDLE_GRAPH);
-  const [hitlFixes,   setHitlFixes  ] = useState<Fix[] | null>(null);
-  const [reportText,  setReportText ] = useState("");
+  const [hitlFixes, setHitlFixes] = useState<Fix[] | null>(null);
+  const [reportText, setReportText] = useState("");
   const [contextFiles, setContextFiles] = useState<Record<string, string>>({});
-  const [isDragging,  setIsDragging ] = useState(false);
-  const [botState,    setBotState   ] = useState<"idle" | "thinking" | "triage" | "db" | "infra" | "network" | "critic" | "success" | "error">("idle");
+  const [isDragging, setIsDragging] = useState(false);
+  const [botState, setBotState] = useState<"idle" | "thinking" | "triage" | "db" | "infra" | "network" | "critic" | "success" | "error">("idle");
+  const [slackStatus, setSlackStatus] = useState<'idle' | 'loading' | 'success'>('idle');
+  const [scenarioOpen, setScenarioOpen] = useState(false);
+  const [selectedScenario, setSelectedScenario] = useState("Load Scenario");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const abortRef     = useRef<AbortController | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const notifySlack = async () => {
+    if (!incident) return;
+    setSlackStatus('loading');
+    try {
+      const message = `*🚨 DebugPilot Incident Report: ${incident.domain?.toUpperCase() || 'SYSTEM'}*\n\n*Triage*: ${incident.triage?.summary || 'N/A'}\n*Selected Fix*: ${incident.selectedFix?.selected_fix_title || 'N/A'}\n\n*Detailed Report*:\n${reportText || incident.report || ''}`;
+      const res = await fetch('/api/slack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message })
+      });
+      if (res.ok) {
+        setSlackStatus('success');
+        setTimeout(() => setSlackStatus('idle'), 4000);
+      } else {
+        setSlackStatus('idle');
+      }
+    } catch {
+      setSlackStatus('idle');
+    }
+  };
+
+  /* ── Download Report ────────────────────────────── */
+  const downloadReport = () => {
+    const report = reportText || incident?.report;
+    if (!report) return;
+    
+    const domainPart = incident?.domain ? incident.domain.toUpperCase() : 'SYSTEM';
+    const triageSummary = incident?.triage?.summary || 'N/A';
+    const selectedFix = incident?.selectedFix?.selected_fix_title || 'N/A';
+    
+    const content = "# Incident Report: " + domainPart + "\n\n" +
+                    "**Triage Summary**\n" + triageSummary + "\n\n" +
+                    "**Selected Fix**\n" + selectedFix + "\n\n" +
+                    "---\n\n" +
+                    "## Detailed AI Report\n" + report;
+    
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "incident_report_" + Date.now() + ".md";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   /* ── Chatter helper ─────────────────────────────── */
   const addChatter = useCallback((agent: string, text: string, type: ChatterMessage["type"]) => {
@@ -243,7 +317,7 @@ export default function Dashboard() {
       const res = await fetch("/api/analyze");
       const data = await res.json();
       setHistory(data.incidents || []);
-    } catch {}
+    } catch { }
   };
 
   const handleForceApply = (fix: Fix) => {
@@ -302,9 +376,9 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <HeaderStat icon={Zap}      label="Agents"  value="6 Active"    color="#00f0ff" />
-            <HeaderStat icon={Database} label="Model"   value="Oxlo API"    color="#7C3AED" />
-            <HeaderStat icon={Shield}   label="Status"  value="Operational" color="#10B981" />
+            <HeaderStat icon={Zap} label="Agents" value="6 Active" color="#00f0ff" />
+            <HeaderStat icon={Database} label="Model" value="Oxlo API" color="#7C3AED" />
+            <HeaderStat icon={Shield} label="Status" value="Operational" color="#10B981" />
           </div>
           <div className="flex items-center gap-3">
             <nav className="flex items-center gap-1 p-1"
@@ -352,18 +426,47 @@ export default function Dashboard() {
 
                 {/* Log Input */}
                 <div className="glass p-6 flex flex-col gap-4" style={{ borderRadius: "var(--radius-xl)" }}>
-                  <div style={{ display:'flex', flexDirection:'column', alignItems:'center', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '16px' }}>
                     <DebugBot mode="hero" agentState={botState} />
                     <h1 className="text-xl font-bold tracking-tight gradient-text leading-none" style={{ marginTop: 12, fontFamily: "var(--font-display)" }}>DebugPilot</h1>
                   </div>
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Activity className="w-4 h-4" style={{ color: "var(--color-accent)" }} />
-                      <h2 className="font-semibold text-sm" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-display)" }}>Raw log ingestion</h2>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <Activity className="w-4 h-4" style={{ color: "var(--color-accent)" }} />
+                        <h2 className="font-semibold text-sm" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-display)" }}>Raw log ingestion</h2>
+                      </div>
+
+                      {/* Scenario Dropdown */}
+                      <div className="relative">
+                        <button onClick={() => setScenarioOpen(!scenarioOpen)}
+                          className="flex items-center gap-1.5 px-2.5 py-1 text-xs transition-colors hover:scale-[1.02]"
+                          style={{ background: "rgba(0,240,255,0.12)", border: "1px solid rgba(0,240,255,0.4)", borderRadius: "var(--radius-sm)", color: "#00f0ff", fontWeight: 600 }}>
+                          {selectedScenario} <ChevronDown className="w-3 h-3" />
+                        </button>
+                        {scenarioOpen && (
+                          <div className="absolute right-0 top-full mt-1 w-48 z-10 p-1"
+                            style={{ background: "rgba(13,17,42,0.95)", backdropFilter: "blur(12px)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)" }}>
+                            {Object.entries(DEMO_SCENARIOS).map(([key, logs]) => {
+                              const label = key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                              return (
+                                <button key={key}
+                                  onClick={() => { setLogs(logs); setSelectedScenario(label); setScenarioOpen(false); }}
+                                  className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 rounded-sm"
+                                  style={{ color: "var(--color-text-secondary)" }}>
+                                  {label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="h-px w-full mt-2 mb-3" style={{ background: "linear-gradient(90deg,rgba(0,240,255,0.3),transparent)" }} />
-                    <p className="text-xs leading-relaxed" style={{ color: "var(--color-text-muted)" }}>Paste failing server logs. The Triage agent routes to the right specialist automatically.</p>
+                    <p className="text-xs leading-relaxed" style={{ color: "var(--color-text-muted)" }}>Paste failing server logs or load a scenario.</p>
                   </div>
+
+                  <AnomalyGraph trigger={logs} />
 
                   <textarea id="log-input" value={logs} onChange={e => setLogs(e.target.value)}
                     className="log-textarea w-full p-4 text-sm leading-6" style={{ minHeight: 180 }}
@@ -539,12 +642,29 @@ export default function Dashboard() {
                           </div>
                         </div>
 
-                        <div className="glass p-6" style={{ borderRadius: "var(--radius-xl)", borderLeft: "3px solid var(--color-primary)" }}>
+                        <div className="glass p-6" style={{ borderRadius: "var(--radius-xl)", borderLeft: "3px solid var(--color-primary)", display: 'flex', flexDirection: 'column' }}>
                           <div className="flex items-center justify-between mb-4">
                             <h3 className="font-semibold flex items-center gap-2" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-display)" }}>
                               <FileText className="w-4 h-4" style={{ color: "var(--color-primary)" }} />Incident report
                             </h3>
-                            <span className="badge badge-blue">Auto-generated</span>
+                            <div className="flex items-center gap-2">
+                              {/* Download Button */}
+                              <button onClick={downloadReport} disabled={!incident || (!reportText && !incident.report)}
+                                className="flex items-center gap-1 px-2.5 py-1 text-[10px] transition-colors disabled:opacity-50 hover:bg-white/10"
+                                style={{ background: "rgba(0, 240, 255, 0.1)", border: "1px solid rgba(0, 240, 255, 0.3)", borderRadius: "var(--radius-sm)", color: "#00f0ff", fontWeight: 'bold' }}>
+                                <Download className="w-3 h-3" />
+                                Download MD
+                              </button>
+                              
+                              {/* Slack Button */}
+                              {slackStatus === 'success' && <span className="text-[10px] text-green-400 font-medium">Sent!</span>}
+                              <button onClick={notifySlack} disabled={slackStatus === 'loading' || loading}
+                                className="flex items-center gap-1 px-2.5 py-1 text-[10px] transition-colors disabled:opacity-50"
+                                style={{ background: "rgba(33, 163, 102, 0.15)", border: "1px solid rgba(33, 163, 102, 0.4)", borderRadius: "var(--radius-sm)", color: "#4ade80", fontWeight: 'bold' }}>
+                                {slackStatus === 'loading' ? <Loader2 className="w-3 h-3 animate-spin" /> : <MessageSquare className="w-3 h-3" />}
+                                Notify Slack
+                              </button>
+                            </div>
                           </div>
                           <div className="prose prose-invert prose-xs max-w-none overflow-y-auto max-h-[220px] p-3 text-xs leading-relaxed"
                             style={{ background: "rgba(0,240,255,0.03)", border: "1px solid rgba(0,240,255,0.08)", borderRadius: "var(--radius-md)" }}>

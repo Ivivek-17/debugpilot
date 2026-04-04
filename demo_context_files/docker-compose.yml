@@ -1,0 +1,35 @@
+version: '3.8'
+services:
+  payment-gateway:
+    image: payment-gateway:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_URL=redis://redis-cache:6379
+      - DB_URL=postgres://db:5432/main
+    depends_on:
+      - redis-cache
+      - db
+    networks:
+      - internal-network
+
+  redis-cache:
+    image: redis:7.0-alpine
+    command: redis-server --maxmemory 500mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    networks:
+      - internal-network
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: demo_password
+      POSTGRES_DB: main
+    networks:
+      - internal-network
+
+networks:
+  internal-network:
+    driver: bridge

@@ -101,9 +101,7 @@ export default function AgentChatter({ messages, agentState }: AgentChatterProps
                     style={{ color: AGENT_COLORS[msg.agent] ?? "#94A3B8" }}>
                     [{msg.agent}]
                   </span>
-                  <span style={{ color: TYPE_COLORS[msg.type] }}>
-                    {msg.text}
-                  </span>
+                  <TypewriterText text={msg.text} color={TYPE_COLORS[msg.type] || "#94A3B8"} />
                 </div>
               ))
             )}
@@ -113,4 +111,25 @@ export default function AgentChatter({ messages, agentState }: AgentChatterProps
       </AnimatePresence>
     </div>
   );
+}
+
+function TypewriterText({ text, color }: { text: string; color: string }) {
+  const [displayed, setDisplayed] = useState("");
+  useEffect(() => {
+    let index = 0;
+    setDisplayed("");
+    const interval = setInterval(() => {
+      if (index >= text.length) {
+        clearInterval(interval);
+        return;
+      }
+      // Access current index safely
+      const char = text[index];
+      setDisplayed((prev) => prev + char);
+      index++;
+    }, 15);
+    return () => clearInterval(interval);
+  }, [text]);
+
+  return <span style={{ color }}>{displayed}</span>;
 }
