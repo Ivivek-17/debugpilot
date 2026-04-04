@@ -36,6 +36,8 @@ export interface DebugBotProps {
 export default function DebugBot({ mode, agentState, size }: DebugBotProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  const agentStateRef = useRef(agentState);
+
   // Animation mutation refs
   const bobSpeed = useRef(1.2);
   const isShaking = useRef(false);
@@ -49,6 +51,10 @@ export default function DebugBot({ mode, agentState, size }: DebugBotProps) {
 
   const defaultSize = mode === "hero" ? 220 : mode === "terminal" ? 44 : 36;
   const actualSize = size ?? defaultSize;
+
+  useEffect(() => {
+    agentStateRef.current = agentState;
+  }, [agentState]);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -248,9 +254,9 @@ export default function DebugBot({ mode, agentState, size }: DebugBotProps) {
       }
 
       // State-based eye pulsing
-      if (agentState === "thinking" && eyeMaterialRef.current) {
+      if (agentStateRef.current === "thinking" && eyeMaterialRef.current) {
         eyeMaterialRef.current.emissiveIntensity = 1.2 + Math.sin(t * 3) * 0.8;
-      } else if (agentState === "critic" && eyeMaterialRef.current) {
+      } else if (agentStateRef.current === "critic" && eyeMaterialRef.current) {
         eyeMaterialRef.current.emissiveIntensity = 1.0 + Math.sin(t * 5) * 0.6;
       }
 

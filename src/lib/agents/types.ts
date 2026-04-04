@@ -16,12 +16,14 @@ export interface CriticResult {
 }
 
 export interface Incident {
+  [key: string]: unknown;  // index signature for compatibility
   id: string;
   timestamp: string;
   originalLogs: string;
   context: Record<string, string>;
   domain: string;
   triage: { domain: string; confidence: string; summary: string };
+  diagnosis?: { root_cause?: string; [key: string]: unknown };
   fixes: Fix[];
   selectedFix: CriticResult;
   report: string;
@@ -29,7 +31,7 @@ export interface Incident {
 
 export type SseEvent =
   | { type: "agent_start"; agent: string; message: string }
-  | { type: "agent_done"; agent: string; data: any }
+  | { type: "agent_done"; agent: string; data: object }
   | { type: "critic_retry"; attempt: number; reason: string }
   | { type: "hitl_required"; fixes: Fix[] }
   | { type: "report_chunk"; chunk: string }

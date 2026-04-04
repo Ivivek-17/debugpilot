@@ -46,8 +46,8 @@ export async function* orchestrate(
   try {
     triage = await runTriageAgent(logs);
     yield { type: "agent_done", agent: "Triage", data: triage };
-  } catch (err: any) {
-    yield { type: "agent_error", agent: "Triage", message: `Triage failed: ${err.message}. Defaulting to Infra_Agent.` };
+  } catch (err: unknown) {
+    yield { type: "agent_error", agent: "Triage", message: `Triage failed: ${(err as Error).message}. Defaulting to Infra_Agent.` };
     triage = { domain: "infra" as const, confidence: "low" as const, summary: "Unable to classify — defaulting to infrastructure diagnosis." };
   }
 
@@ -66,8 +66,8 @@ export async function* orchestrate(
       fixes = await runInfraAgent(logs, triage.summary, context);
     }
     yield { type: "agent_done", agent: workerName, data: { fixes } };
-  } catch (err: any) {
-    yield { type: "agent_error", agent: workerName, message: `${workerName} failed: ${err.message}. Proceeding with heuristic fix.` };
+  } catch (err: unknown) {
+    yield { type: "agent_error", agent: workerName, message: `${workerName} failed: ${(err as Error).message}. Proceeding with heuristic fix.` };
     fixes = [{
       title: "Restart Failed Service",
       description: "Restart the failing service and monitor logs for recurrence. Check resource limits.",
@@ -111,12 +111,12 @@ export async function* orchestrate(
             currentFixes = await runInfraAgent(`${logs}\n\nHint: ${hint}`, triage.summary, context);
           }
           yield { type: "agent_done", agent: workerName, data: { fixes: currentFixes } };
-        } catch (err: any) {
-          yield { type: "agent_error", agent: workerName, message: `Regeneration failed: ${err.message}` };
+        } catch (err: unknown) {
+          yield { type: "agent_error", agent: workerName, message: `Regeneration failed: ${(err as Error).message}` };
         }
       }
-    } catch (err: any) {
-      yield { type: "agent_error", agent: "Critic", message: `Critic agent error: ${err.message}. Auto-approving safest fix.` };
+    } catch (err: unknown) {
+      yield { type: "agent_error", agent: "Critic", message: `Critic agent error: ${(err as Error).message}. Auto-approving safest fix.` };
       criticResult = {
         approved: true,
         selected_fix_title: currentFixes[0]?.title ?? "Best Available",
@@ -146,8 +146,8 @@ export async function* orchestrate(
       yield { type: "report_chunk", chunk: words.slice(i, i + 4).join(" ") + " " };
     }
     yield { type: "agent_done", agent: "Report", data: { length: reportText.length } };
-  } catch (err: any) {
-    yield { type: "agent_error", agent: "Report", message: `Report generation failed: ${err.message}` };
+  } catch (err: unknown) {
+    yield { type: "agent_error", agent: "Report", message: `Report generation failed: ${(err as Error).message}` };
     reportText = "Report generation failed. See agent chatter for details.";
   }
 
@@ -164,7 +164,7 @@ export async function* orchestrate(
     report: reportText,
   };
 
-  addIncident(incident as any);
+  addIncident(incident as unknown as Parameters<typeof addIncident>[0]);
 
   yield { type: "complete", incident };
 }

@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Play, Activity, Cpu, CheckCircle, FileText, AlertTriangle,
   Loader2, RefreshCw, Clock, Zap, Shield, Terminal, Database,
-  ChevronRight, Upload, X, Copy, LogOut, User, MessageSquare, ChevronDown, Download
+  Upload, X, LogOut, User, MessageSquare, ChevronDown, Download
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
@@ -15,7 +15,7 @@ import DebugBot from "@/components/DebugBot";
 import AnomalyGraph from "@/components/AnomalyGraph";
 import Login from "@/components/Login";
 import type { AgentNodeStatus } from "@/components/AgentGraph";
-import type { Fix } from "@/lib/agents/types";
+import type { Fix, SseEvent, Incident } from "@/lib/agents/types";
 
 // Lazy-load React Flow to avoid SSR issues
 const AgentGraph = dynamic(() => import("@/components/AgentGraph"), { ssr: false });
@@ -61,7 +61,7 @@ function getRiskClass(risk?: string) {
   return "badge badge-warning";
 }
 
-function HeaderStat({ icon: Icon, label, value, color }: { icon: any; label: string; value: string; color: string }) {
+function HeaderStat({ icon: Icon, label, value, color }: { icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; value: string; color: string }) {
   return (
     <div className="hidden md:flex items-center gap-2 px-3 py-1.5"
       style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)" }}>
@@ -99,8 +99,8 @@ export default function Dashboard() {
   /* ── Core dashboard state ──────────────────────── */
   const [logs, setLogs] = useState(DEFAULT_LOGS);
   const [loading, setLoading] = useState(false);
-  const [incident, setIncident] = useState<any>(null);
-  const [history, setHistory] = useState<any[]>([]);
+  const [incident, setIncident] = useState<Incident | null>(null);
+  const [history, setHistory] = useState<Incident[]>([]);
   const [activeTab, setActiveTab] = useState("run");
   const [chatter, setChatter] = useState<ChatterMessage[]>([]);
   const [graphStatus, setGraphStatus] = useState<AgentNodeStatus>(IDLE_GRAPH);
@@ -168,7 +168,7 @@ export default function Dashboard() {
   }, []);
 
   /* ── Graph helper ───────────────────────────────── */
-  const setGraphNode = useCallback((node: keyof AgentNodeStatus, value: any) => {
+  const setGraphNode = useCallback((node: keyof AgentNodeStatus, value: AgentNodeStatus[keyof AgentNodeStatus]) => {
     setGraphStatus(prev => ({ ...prev, [node]: value }));
   }, []);
 
@@ -237,7 +237,7 @@ export default function Dashboard() {
           const jsonStr = line.slice(5).trim();
           if (!jsonStr) continue;
 
-          let event: any;
+          let event: SseEvent;
           try { event = JSON.parse(jsonStr); } catch { continue; }
 
           const agentToState: Record<string, typeof botState> = {
@@ -258,12 +258,12 @@ export default function Dashboard() {
               break;
 
             case "agent_done":
-              addChatter(event.agent, `Completed. ${event.data?.fixes?.length ? `Generated ${event.data.fixes.length} fixes.` : ""}`, "success");
+              addChatter(event.agent, `Completed. ${(event.data as {fixes?: unknown[]})?.fixes?.length ? `Generated ${(event.data as {fixes?: unknown[]}).fixes!.length} fixes.` : ""}`, "success");
               if (event.agent === "Triage") setGraphNode("triage", "done");
               else if (event.agent?.includes("Agent") && event.agent !== "Critic" && event.agent !== "Report") {
                 setGraphStatus(prev => ({ ...prev, worker: "done", criticRejecting: false }));
               }
-              else if (event.agent === "Critic") setGraphNode("critic", event.data?.approved ? "done" : "error");
+              else if (event.agent === "Critic") setGraphNode("critic", (event.data as {approved?: boolean})?.approved ? "done" : "error");
               else if (event.agent === "Report") setGraphNode("report", "done");
               break;
 
@@ -286,7 +286,7 @@ export default function Dashboard() {
             case "complete":
               setBotState('success');
               setTimeout(() => setBotState('idle'), 2500);
-              setIncident(event.incident);
+              setIncident(event.incident as Incident);
               addChatter("System", "Pipeline complete. Incident stored.", "success");
               loadHistory();
               break;
@@ -303,8 +303,8 @@ export default function Dashboard() {
           }
         }
       }
-    } catch (err: any) {
-      if (err.name !== "AbortError") {
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name !== "AbortError") {
         addChatter("System", `Network error: ${err.message}. Check your connection and try again.`, "error");
       }
     } finally {
@@ -316,13 +316,18 @@ export default function Dashboard() {
     try {
       const res = await fetch("/api/analyze");
       const data = await res.json();
-      setHistory(data.incidents || []);
+      setHistory((data.incidents || []) as Incident[]);
     } catch { }
   };
 
   const handleForceApply = (fix: Fix) => {
     setHitlFixes(null);
-    setIncident({ triage: {}, fixes: [fix], selectedFix: { selected_fix_title: fix.title, reason: "User-forced via HITL.", approved: true, risk_level: fix.risk_level }, report: "Manually applied via Human-in-the-Loop intervention." });
+    setIncident({
+      id: crypto.randomUUID(), timestamp: new Date().toISOString(), originalLogs: logs, context: contextFiles, domain: 'manual',
+      triage: { domain: 'manual', confidence: 'high', summary: 'Manual HITL intervention' },
+      fixes: [fix], selectedFix: { selected_fix_title: fix.title, reason: "User-forced via HITL.", approved: true, risk_level: fix.risk_level, warnings: [] },
+      report: "Manually applied via Human-in-the-Loop intervention."
+    });
     setReportText("Manually applied via Human-in-the-Loop intervention.");
   };
 
@@ -630,9 +635,9 @@ export default function Dashboard() {
                           <div className="p-4" style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.20)", borderRadius: "var(--radius-md)" }}>
                             <h4 className="font-bold text-sm mb-2" style={{ color: "#6ee7b7", fontFamily: "var(--font-display)" }}>{incident.selectedFix?.selected_fix_title || "N/A"}</h4>
                             <p className="text-xs leading-relaxed" style={{ color: "rgba(16,185,129,0.7)" }}>{incident.selectedFix?.reason}</p>
-                            {incident.selectedFix?.warnings?.length > 0 && (
+                            {(incident.selectedFix?.warnings?.length ?? 0) > 0 && (
                               <div className="mt-3 space-y-1">
-                                {incident.selectedFix.warnings.map((w: string, i: number) => (
+                                {incident.selectedFix.warnings!.map((w: string, i: number) => (
                                   <p key={i} className="text-[10px] flex items-start gap-1" style={{ color: "rgba(245,158,11,0.7)" }}>
                                     <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />{w}
                                   </p>
@@ -696,7 +701,7 @@ export default function Dashboard() {
                       <tr><th>Timestamp</th><th>Domain</th><th>Triage Summary</th><th>Selected Fix</th><th>Risk</th></tr>
                     </thead>
                     <tbody>
-                      {history.length > 0 ? history.map((inc: any) => (
+                      {history.length > 0 ? history.map((inc) => (
                         <tr key={inc.id}>
                           <td><span className="mono text-xs" style={{ color: "var(--color-text-secondary)" }}>{new Date(inc.timestamp).toLocaleString()}</span></td>
                           <td><span className="badge badge-blue">{(inc.domain || "unknown").toUpperCase()}</span></td>

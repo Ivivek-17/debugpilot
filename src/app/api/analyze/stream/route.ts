@@ -46,11 +46,11 @@ export async function POST(request: Request) {
             break;
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         sendEvent({
           type: "agent_error",
           agent: "System",
-          message: `Orchestrator crashed: ${err.message ?? "Unknown error"}`,
+          message: `Orchestrator crashed: ${err instanceof Error ? err.message : "Unknown error"}`,
         });
       } finally {
         controller.close();

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Loader2, LogIn, Eye, EyeOff } from "lucide-react";
+import { Loader2, LogIn } from "lucide-react";
 
 interface LoginProps {
   onLogin: (user: { name: string; email: string }) => void;
@@ -24,7 +24,7 @@ export default function Login({ onLogin }: LoginProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+
 
   const isValid = name.trim().length >= 2 && email.includes("@");
 

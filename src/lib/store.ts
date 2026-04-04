@@ -9,9 +9,9 @@ export interface Incident {
   id: string;
   timestamp: string;
   originalLogs: string;
-  diagnosis: any;
-  fixes: any;
-  selectedFix: any;
+  diagnosis: Record<string, unknown>;
+  fixes: Record<string, unknown>;
+  selectedFix: Record<string, unknown>;
   report: string;
 }
 

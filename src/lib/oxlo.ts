@@ -41,8 +41,8 @@ export async function callOxloAPI(messages: ChatMessage[], temperature = 0.7): P
 
     const data = await response.json();
     return data.choices[0].message.content;
-  } catch (error: any) {
-    console.error("[DebugPilot] Oxlo API Call Failed:", error.message);
+  } catch (error: unknown) {
+    console.error("[DebugPilot] Oxlo API Call Failed:", error instanceof Error ? error.message : error);
     throw error; // propagate to orchestrator, which handles it gracefully via SSE
   }
 }

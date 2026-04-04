@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Terminal, Circle } from "lucide-react";
+import { ChevronDown, ChevronUp, Circle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import DebugBot from "./DebugBot";
 
