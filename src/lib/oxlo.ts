@@ -7,7 +7,7 @@
 
 const OXLO_API_KEY = process.env.OXLO_API_KEY || "";
 const OXLO_ENDPOINT = process.env.OXLO_ENDPOINT || "https://api.oxlo.ai/v1/chat/completions";
-const MODEL_NAME = process.env.OXLO_MODEL || "gemini-2.0-flash";
+const MODEL_NAME = process.env.OXLO_MODEL || "deepseek-v3.2";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";

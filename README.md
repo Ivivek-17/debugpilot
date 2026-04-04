@@ -50,7 +50,7 @@ Create a `.env.local` file at the root:
 
 ```bash
 # Reasoning model (DeepSeek or Claude-3.5-Sonnet)
-OXLO_MODEL="gemini-2.0-flash"
+OXLO_MODEL="deepseek-v3.2"
 
 # Your Oxlo API Secret
 OXLO_API_KEY="your_oxlo_api_key_here"
