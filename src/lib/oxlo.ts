@@ -5,9 +5,9 @@
  * Substitute the BASE_URL and ensure your API KEY is in .env
  */
 
-const OXLO_API_KEY = process.env.OXLO_API_KEY || "sk_d7n5pQTsWI9_sToFLI14wotMznpVX98psv8zhUL_koY";
+const OXLO_API_KEY = process.env.OXLO_API_KEY || "";
 const OXLO_ENDPOINT = process.env.OXLO_ENDPOINT || "https://api.oxlo.ai/v1/chat/completions";
-const MODEL_NAME = process.env.OXLO_MODEL || "deepseek-v3.2";
+const MODEL_NAME = process.env.OXLO_MODEL || "gemini-2.0-flash";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
