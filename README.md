@@ -1,57 +1,68 @@
-# DebugPilot
+# 🦉 DebugPilot – Kinetic AI Copilot
 
-**Enterprise AI Copilot for Automated Backend Failure Resolution**
+**The Technical Nexus for Automated Backend Incident Resolution.**
 
-DebugPilot is a closed-loop incident response and AI debugging orchestrator. Engineered for modern microservice and serverless architectures, this platform ingests raw server telemetry/logs, semantically analyzes failure points, synthesizes potential resolutions, and quantitatively evaluates them to deliver highly actionable Root Cause Analyses (RCAs).
-
----
-
-## 🏗 Architecture & Tech Stack
-
-The architecture is designed to be highly modular, stateless, and instantly deployable on Edge networks:
-- **Framework:** Next.js 15 (App Router, React 19)
-- **Styling:** Tailwind CSS v4 (Custom Glassmorphism Design System)
-- **AI Orchestration:** Multi-agent reasoning via the **Oxlo API**
-- **State & Animations:** React Hooks + Framer Motion
-- **Deployment Strategy:** Vercel Serverless / Edge Functions
-
-## 🧠 Multi-Agent Pipeline
-
-The core AI logic operates on a sophisticated pipeline (`src/lib/agents.ts`) representing specialized system roles:
-1. **Trace Analyzer (Diagnosis Agent):** Parses raw exception traces to isolate the failing microservice, pinpoint exact timestamps, and synthesize the technical root cause dynamically.
-2. **Resolution Generator (Fix Agent):** Compiles an array of potential code-level or infrastructure-level fixes, automatically stratifying them by architectural risk and implementation effort.
-3. **Validation Engine (Evaluation Agent):** Critiques the generated fixes sequentially. It filters out high-risk anomalies and promotes the most stabilized solution.
-4. **Post-Mortem Synthesizer (Report Agent):** Auto-generates an internal Markdown RCA report for engineering teams.
+DebugPilot is a high-performance, multi-agent incident response system. Built with the **Kinetic Glacialist** design system, it delivers a tech-noir, high-fidelity experience for diagnosing, resolving, and validating backend service failures in real-time.
 
 ---
 
-## 🚀 Local Development Setup
+## ✨ Key Features & Aesthetics
 
-### 1. Configure the Environment
-Copy the example environment structure into a local `.env` file at the repository root. **Never commit your API keys.**
+- **Kinetic Glacialist UI:** A premium, tech-noir aesthetic featuring sharp geometric precision, neon cyan accents, and reactive glassmorphism.
+- **3D Reactive Mascot (Owly):** A custom Three.js owl that interacts with the user and visually reflects the internal state of the AI agents (Thinking, Success, Error, etc.).
+- **Multi-Agent Orchestration:** Specialized agents collaborate to isolate root causes and synthesize validated resolutions.
+- **Secure Persistence:** Localized authentication and session management with memory-first storage for rapid developer feedback.
+
+---
+
+## 🏗 Industrial Tech Stack
+
+Engineered for precision and speed:
+- **Framework:** Next.js 16 (App Router)
+- **Library:** React 19
+- **Engine:** Three.js (Procedural 3D Mascot)
+- **Styling:** Tailwind CSS v4 + Kinetic Token System
+- **Typography:** Space Grotesk (Display) & JetBrains Mono (Code)
+- **Intelligence:** Oxlo API Multi-Agent Pipeline
+
+---
+
+## 🧠 The Agent Nexus
+
+The core engine utilizes a specialized pipeline (`src/lib/agents.ts`) representing distinct system roles:
+
+1.  **Triage Agent:** Conducts initial log analysis and impact assessment.
+2.  **Domain Specialists (DB, Infra, Network):** Specialized agents that deep-dive into database locks, infrastructure bottlenecks, or connectivity anomalies.
+3.  **The Critic:** Sequentially evaluates generated fixes to eliminate regressions and promote stable resolutions.
+4.  **Success Orchestrator:** Synthesizes the final resolution and pushes the fix telemetry.
+
+---
+
+## 🚀 Local Development
+
+### 1. Environment Config
+Create a `.env.local` file at the root:
 
 ```bash
-# Define the designated model for reasoning (Default: deepseek-v3.2)
+# reasoning model (DeepSeek or Claude suggested)
 OXLO_MODEL="deepseek-v3.2"
 
-# Your strict Oxlo API Key (Keep this secret)
+# Your Oxlo API Secret
 OXLO_API_KEY="your_oxlo_api_key_here"
 
-# The standard Chat Completions endpoint
+# API Endpoint
 OXLO_ENDPOINT="https://api.oxlo.ai/v1/chat/completions"
 ```
 
-### 2. Install & Run
+### 2. Ignition
 ```bash
 npm install
 npm run dev
 ```
-Navigate to `http://localhost:3000` to access the DebugPilot interface.
+Open `http://localhost:3000` to initiate the diagnostic nexus.
 
 ---
 
-## 🛡️ Security & Best Practices
+## 🛡️ Security Architecture
 
-- **Ephemeral Storage:** By default, incident history is localized in memory during development. For production staging, the adapter (`src/lib/store.ts`) should be connected to a secure persistence layer such as Vercel Redis KV or Supabase.
-- **Key Masking:** The `OXLO_API_KEY` is completely obfuscated from the client. All AI agent orchestration happens securely via Next.js Serverless API routes (`/api/analyze/route.ts`).
-- **Input Sanitization:** Log payloads are sanitized payload buffers to ensure safety before interacting with the LLM API layer. 
+All AI orchestration is handled through **Next.js Server Actions** and secure API routes to prevent sensitive token leakage. The system uses masked input payloads and strictly sanitized telemetry buffers for end-to-end security. 
