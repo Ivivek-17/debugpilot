@@ -1,8 +1,8 @@
 /**
- * DebugPilot - Oxlo API Client (Hackathon Version)
+ * DebugPilot - Oxlo API Client
  * 
- * This client mimics an OpenAI-compatible /chat/completions endpoint structure.
- * Substitute the BASE_URL and ensure your API KEY is in .env
+ * OpenAI-compatible /chat/completions client.
+ * All secrets are read from environment variables — see .env.example.
  */
 
 const OXLO_API_KEY = process.env.OXLO_API_KEY || "";
@@ -15,6 +15,11 @@ export interface ChatMessage {
 }
 
 export async function callOxloAPI(messages: ChatMessage[], temperature = 0.7): Promise<string> {
+  if (!OXLO_API_KEY) {
+    console.error("[DebugPilot] OXLO_API_KEY is not set. Add it to .env.local or Vercel Environment Variables.");
+    throw new Error("OXLO_API_KEY is not configured. Please set it in your environment variables.");
+  }
+
   try {
     const response = await fetch(OXLO_ENDPOINT, {
       method: "POST",
@@ -36,9 +41,9 @@ export async function callOxloAPI(messages: ChatMessage[], temperature = 0.7): P
 
     const data = await response.json();
     return data.choices[0].message.content;
-  } catch (error) {
-    console.error("Oxlo API Call Failed:", error);
-    // Return a fallback for testing if API is not yet configured or reachable
-    return `[Mock Oxlo Response]: Failed to reach API. Error: ${error}`;
+  } catch (error: any) {
+    console.error("[DebugPilot] Oxlo API Call Failed:", error.message);
+    throw error; // propagate to orchestrator, which handles it gracefully via SSE
   }
 }
+
