@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import ReactFlow, {
   Node, Edge, Background, BackgroundVariant,
   Handle, Position, NodeProps,
@@ -52,8 +52,6 @@ function AgentNode({ data }: NodeProps) {
   );
 }
 
-const nodeTypes = { agentNode: AgentNode };
-
 /* ── Default Node Layout ─────────────────────────────────────── */
 const BASE_NODES: Node[] = [
   { id: "triage",  type: "agentNode", position: { x: 0, y: 80 },   data: { label: "Triage",    icon: "🔍", state: "idle" } },
@@ -93,6 +91,8 @@ interface AgentGraphProps {
 }
 
 export default function AgentGraph({ status }: AgentGraphProps) {
+  const nodeTypes = useRef({ agentNode: AgentNode }).current;
+
   const nodes = useMemo(() => BASE_NODES.map(n => {
     let state: AgentNodeState = "idle";
     if (n.id === "triage")                        state = status.triage;
