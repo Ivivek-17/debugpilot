@@ -1,4 +1,5 @@
-import { callOxloAPI } from "../oxlo";
+import { callOxloAPI, getEmbedding } from "../oxlo";
+import { supabase } from "../supabase";
 import { runTriageAgent } from "./triage";
 import { runDbAgent } from "./db";
 import { runInfraAgent } from "./infra";
@@ -53,17 +54,49 @@ export async function* orchestrate(
 
   // ── Step 2: Domain Worker ────────────────────────────────────
   const workerName = `${triage.domain.toUpperCase()}_Agent`;
+  
+  yield { type: "agent_start", agent: workerName, message: `Searching semantic memory for prior resolutions...` };
+  
+  let enrichedLogs = logs;
+  let bge: number[] | null = null;
+  let e5: number[] | null = null;
+  
+  try {
+    // Generate dual-embeddings and query Supabase
+    [bge, e5] = await Promise.all([
+      getEmbedding(logs, "bge-large-en-v1.5").catch(() => null),
+      getEmbedding(logs, "e5-large-v2").catch(() => null)
+    ]);
+    
+    if (bge && e5) {
+      const { data } = await supabase.rpc("match_bugs", {
+        query_embedding_bge: bge,
+        query_embedding_e5: e5,
+        match_threshold: 0.82,
+        match_count: 2
+      });
+      
+      if (data && data.length > 0) {
+        yield { type: "agent_done", agent: workerName, data: { status: `Found ${data.length} similar past incidents.` } };
+        const pastContext = data.map((d: any) => `[PAST INCIDENT - ${d.diagnosis}]\nPrior Fix Used: ${d.fix_title}`).join("\n\n");
+        enrichedLogs = `${logs}\n\n[SYSTEM: RAG SEMANTIC MEMORY MATCH]\n${pastContext}`;
+      }
+    }
+  } catch (err) {
+    console.error("RAG Error:", err);
+  }
+
   yield { type: "agent_start", agent: workerName, message: `Generating specialist fixes for domain: ${triage.domain}...` };
 
   let fixes: Fix[] = [];
   try {
     if (triage.domain === "db") {
-      fixes = await runDbAgent(logs, triage.summary, context);
+      fixes = await runDbAgent(enrichedLogs, triage.summary, context);
     } else if (triage.domain === "network") {
-      fixes = await runNetworkAgent(logs, triage.summary, context);
+      fixes = await runNetworkAgent(enrichedLogs, triage.summary, context);
     } else {
       // infra + unknown both go to Infra_Agent
-      fixes = await runInfraAgent(logs, triage.summary, context);
+      fixes = await runInfraAgent(enrichedLogs, triage.summary, context);
     }
     yield { type: "agent_done", agent: workerName, data: { fixes } };
   } catch (err: unknown) {
@@ -104,11 +137,11 @@ export async function* orchestrate(
         try {
           const hint = `Previous fixes were rejected by Critic for: ${criticResult.reason}. Generate improved alternatives.`;
           if (triage.domain === "db") {
-            currentFixes = await runDbAgent(`${logs}\n\nHint: ${hint}`, triage.summary, context);
+            currentFixes = await runDbAgent(`${enrichedLogs}\n\nHint: ${hint}`, triage.summary, context);
           } else if (triage.domain === "network") {
-            currentFixes = await runNetworkAgent(`${logs}\n\nHint: ${hint}`, triage.summary, context);
+            currentFixes = await runNetworkAgent(`${enrichedLogs}\n\nHint: ${hint}`, triage.summary, context);
           } else {
-            currentFixes = await runInfraAgent(`${logs}\n\nHint: ${hint}`, triage.summary, context);
+            currentFixes = await runInfraAgent(`${enrichedLogs}\n\nHint: ${hint}`, triage.summary, context);
           }
           yield { type: "agent_done", agent: workerName, data: { fixes: currentFixes } };
         } catch (err: unknown) {
@@ -152,6 +185,22 @@ export async function* orchestrate(
   }
 
   // ── Step 5: Persist & Complete ───────────────────────────────
+  
+  if (bge && e5) {
+    try {
+      await supabase.from("bug_history").insert({
+        log_text: logs,
+        diagnosis: triage.summary,
+        fix_title: criticResult?.selected_fix_title || "Unknown",
+        fix_details: criticResult || {},
+        embedding_bge: bge,
+        embedding_e5: e5
+      });
+    } catch (e) {
+      console.error("Supabase Insert Error:", e);
+    }
+  }
+
   const incident: Incident = {
     id: randomUUID(),
     timestamp: new Date().toISOString(),

@@ -47,3 +47,26 @@ export async function callOxloAPI(messages: ChatMessage[], temperature = 0.7): P
   }
 }
 
+export async function getEmbedding(text: string, model: string): Promise<number[]> {
+  if (!OXLO_API_KEY) throw new Error("OXLO_API_KEY is not configured.");
+  const endpoint = OXLO_ENDPOINT.replace("/chat/completions", "/embeddings");
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${OXLO_API_KEY}`
+      },
+      body: JSON.stringify({ input: text, model })
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Oxlo API Error: ${response.status} - ${errorText}`);
+    }
+    const data = await response.json();
+    return data.data[0].embedding;
+  } catch (error: unknown) {
+    console.error(`[DebugPilot] Embedding Call Failed (${model}):`, error instanceof Error ? error.message : error);
+    throw error;
+  }
+}

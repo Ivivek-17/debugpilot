@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import ReactFlow, {
   Node, Edge, Background, BackgroundVariant,
   Handle, Position, NodeProps,
@@ -85,13 +85,15 @@ function workerNodeId(workerLabel: string) {
   return "infra";
 }
 
+/* ── Stable nodeTypes (module-level to avoid React Flow warning) ── */
+const nodeTypes = { agentNode: AgentNode };
+
 /* ── AgentGraph Component ────────────────────────────────────── */
 interface AgentGraphProps {
   status: AgentNodeStatus;
 }
 
 export default function AgentGraph({ status }: AgentGraphProps) {
-  const nodeTypes = useRef({ agentNode: AgentNode }).current;
 
   const nodes = useMemo(() => BASE_NODES.map(n => {
     let state: AgentNodeState = "idle";

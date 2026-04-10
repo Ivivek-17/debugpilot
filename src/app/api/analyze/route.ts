@@ -45,10 +45,37 @@ export async function POST(request: Request) {
   }
 }
 
+import { supabase } from "@/lib/supabase";
+
 /**
  * GET /api/analyze
- * Returns the in-memory incident history.
+ * Returns the incident history persistently from Supabase (falling back to memory if needed).
  */
 export async function GET() {
-  return NextResponse.json({ incidents: getIncidents() });
+  try {
+    const { data, error } = await supabase
+      .from("bug_history")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (error || !data) {
+      return NextResponse.json({ incidents: getIncidents() });
+    }
+
+    const mappedIncidents = data.map(row => ({
+      id: row.id,
+      timestamp: row.created_at,
+      originalLogs: row.log_text,
+      domain: "resolved",
+      triage: { summary: row.diagnosis },
+      fixes: [],
+      selectedFix: row.fix_details,
+      report: `Persisted Resolution: ${row.fix_title}`
+    }));
+
+    return NextResponse.json({ incidents: mappedIncidents });
+  } catch (err) {
+    return NextResponse.json({ incidents: getIncidents() });
+  }
 }
