@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Play, Activity, Cpu, CheckCircle, FileText, AlertTriangle,
   Loader2, RefreshCw, Clock, Zap, Shield, Terminal, Database,
-  Upload, X, LogOut, User, MessageSquare, ChevronDown, Download
+  Upload, X, LogOut, User, MessageSquare, ChevronDown, ChevronRight, Download
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
@@ -112,6 +112,7 @@ export default function Dashboard() {
   const [slackStatus, setSlackStatus] = useState<'idle' | 'loading' | 'success'>('idle');
   const [scenarioOpen, setScenarioOpen] = useState(false);
   const [selectedScenario, setSelectedScenario] = useState("Load Scenario");
+  const [expandedIncidentId, setExpandedIncidentId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -687,40 +688,123 @@ export default function Dashboard() {
 
           {/* ── HISTORY TAB ── */}
           {activeTab === "history" && (
-            <motion.div key="history" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}>
-              <div className="glass overflow-hidden" style={{ borderRadius: "var(--radius-xl)" }}>
-                <div className="px-6 py-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--color-border)" }}>
-                  <h2 className="text-base font-semibold flex items-center gap-2" style={{ fontFamily: "var(--font-display)" }}>
-                    <Clock className="w-4 h-4" style={{ color: "var(--color-primary)" }} />Incident history
-                  </h2>
-                  <span className="badge badge-blue">{history.length} records</span>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="data-table w-full" aria-label="Incident history table">
-                    <thead>
-                      <tr><th>Timestamp</th><th>Domain</th><th>Triage Summary</th><th>Selected Fix</th><th>Risk</th></tr>
-                    </thead>
-                    <tbody>
-                      {history.length > 0 ? history.map((inc) => (
-                        <tr key={inc.id}>
-                          <td><span className="mono text-xs" style={{ color: "var(--color-text-secondary)" }}>{new Date(inc.timestamp).toLocaleString()}</span></td>
-                          <td><span className="badge badge-blue">{(inc.domain || "unknown").toUpperCase()}</span></td>
-                          <td><span className="text-sm max-w-xs block truncate" style={{ color: "var(--color-text-secondary)" }}>{inc.triage?.summary || inc.diagnosis?.root_cause || "Unknown"}</span></td>
-                          <td><span className="text-sm max-w-xs block truncate" style={{ color: "var(--color-success)" }}>{inc.selectedFix?.selected_fix_title || "Unknown"}</span></td>
-                          <td><span className={`badge ${inc.selectedFix?.risk_level === "Low" ? "badge-success" : inc.selectedFix?.risk_level === "High" ? "badge-danger" : "badge-warning"}`}>{inc.selectedFix?.risk_level || "Medium"}</span></td>
-                        </tr>
-                      )) : (
-                        <tr><td colSpan={5} className="text-center py-16" style={{ color: "var(--color-text-muted)" }}>
-                          <div className="flex flex-col items-center gap-3">
-                            <Clock className="w-8 h-8" style={{ color: "var(--color-text-muted)", opacity: 0.3 }} />
-                            <p>No incidents recorded yet.</p>
-                          </div>
-                        </td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+            <motion.div key="history" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }}
+              className="space-y-4">
+              <div className="glass px-6 py-5 flex items-center justify-between" style={{ borderRadius: "var(--radius-xl)" }}>
+                <h2 className="text-base font-semibold flex items-center gap-2" style={{ fontFamily: "var(--font-display)" }}>
+                  <Clock className="w-4 h-4" style={{ color: "var(--color-primary)" }} />Incident history
+                </h2>
+                <span className="badge badge-blue">{history.length} records</span>
               </div>
+
+              {history.length === 0 && (
+                <div className="glass p-12 flex flex-col items-center justify-center text-center" style={{ borderRadius: "var(--radius-xl)", borderStyle: "dashed" }}>
+                  <Clock className="w-10 h-10 mb-3" style={{ color: "var(--color-text-muted)", opacity: 0.3 }} />
+                  <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>No incidents recorded yet.</p>
+                  <p className="text-xs mt-1" style={{ color: "var(--color-text-muted)" }}>Run a diagnosis to populate history.</p>
+                </div>
+              )}
+
+              {history.map((inc, idx) => {
+                const isExpanded = expandedIncidentId === inc.id;
+                return (
+                  <motion.div key={inc.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }}
+                    className="glass overflow-hidden" style={{ borderRadius: "var(--radius-xl)", borderLeft: `3px solid ${isExpanded ? 'var(--color-primary)' : 'var(--color-border)'}` }}>
+
+                    {/* Clickable Summary Row */}
+                    <button
+                      onClick={() => setExpandedIncidentId(isExpanded ? null : inc.id)}
+                      className="w-full text-left px-5 py-4 flex items-center gap-4 cursor-pointer transition-colors hover:bg-white/[0.02]"
+                    >
+                      <div className="shrink-0">
+                        {isExpanded ? <ChevronDown className="w-4 h-4" style={{ color: "var(--color-primary)" }} /> : <ChevronRight className="w-4 h-4" style={{ color: "var(--color-text-muted)" }} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="badge badge-blue">{(inc.domain || "unknown").toUpperCase()}</span>
+                          <span className={`badge ${inc.selectedFix?.risk_level === "Low" ? "badge-success" : inc.selectedFix?.risk_level === "High" ? "badge-danger" : "badge-warning"}`}>{inc.selectedFix?.risk_level || "Medium"} Risk</span>
+                        </div>
+                        <p className="text-sm font-medium truncate" style={{ color: "var(--color-text-primary)", fontFamily: "var(--font-display)" }}>
+                          {inc.triage?.summary || inc.diagnosis?.root_cause || "Unknown incident"}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <span className="mono text-[10px] block" style={{ color: "var(--color-text-muted)" }}>{new Date(inc.timestamp).toLocaleString()}</span>
+                        <span className="text-xs mt-0.5 block truncate max-w-[200px]" style={{ color: "var(--color-success)" }}>
+                          <CheckCircle className="w-3 h-3 inline mr-1" />{inc.selectedFix?.selected_fix_title || "N/A"}
+                        </span>
+                      </div>
+                    </button>
+
+                    {/* Expanded Detail View */}
+                    <AnimatePresence>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.25 }}
+                          style={{ borderTop: "1px solid var(--color-border)", overflow: "hidden" }}
+                        >
+                          <div className="p-5 space-y-4">
+
+                            {/* Selected Fix Detail */}
+                            <div className="p-4" style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.15)", borderRadius: "var(--radius-md)" }}>
+                              <div className="flex items-center gap-2 mb-2">
+                                <CheckCircle className="w-4 h-4" style={{ color: "var(--color-success)" }} />
+                                <h4 className="font-semibold text-sm" style={{ color: "#6ee7b7", fontFamily: "var(--font-display)" }}>
+                                  {inc.selectedFix?.selected_fix_title || "Selected Fix"}
+                                </h4>
+                              </div>
+                              <p className="text-xs leading-relaxed" style={{ color: "rgba(16,185,129,0.7)" }}>
+                                {inc.selectedFix?.reason || "No reason provided."}
+                              </p>
+                            </div>
+
+                            {/* Proposed Fixes Grid */}
+                            {Array.isArray(inc.fixes) && inc.fixes.length > 0 && (
+                              <div>
+                                <h4 className="text-xs font-semibold mb-2 flex items-center gap-1.5" style={{ color: "var(--color-text-muted)", fontFamily: "var(--font-display)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                                  <RefreshCw className="w-3 h-3" style={{ color: "var(--color-warning)" }} />All proposed fixes
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                  {inc.fixes.map((fix: Fix, fIdx: number) => (
+                                    <div key={fIdx} className="p-3" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(245,158,11,0.10)", borderRadius: "var(--radius-md)" }}>
+                                      <div className="flex items-start justify-between gap-1 mb-1">
+                                        <span className="mono text-[10px] font-bold" style={{ color: "rgba(245,158,11,0.4)" }}>#{fIdx + 1}</span>
+                                        <h5 className="font-semibold text-xs flex-1 leading-snug" style={{ color: "#fde68a", fontFamily: "var(--font-display)" }}>{fix.title}</h5>
+                                      </div>
+                                      <span className={getRiskClass(fix.risk_level)}>{fix.risk_level} Risk</span>
+                                      <p className="text-[10px] mt-1 leading-relaxed" style={{ color: "var(--color-text-muted)" }}>{fix.description}</p>
+                                      {fix.cli_command && (
+                                        <pre className="mono text-[9px] mt-1.5 p-1.5 overflow-x-auto" style={{ color: "#4ADE80", background: "rgba(0,0,0,0.4)", borderRadius: "var(--radius-sm)" }}>{fix.cli_command}</pre>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Full Report */}
+                            {inc.report && (
+                              <div>
+                                <h4 className="text-xs font-semibold mb-2 flex items-center gap-1.5" style={{ color: "var(--color-text-muted)", fontFamily: "var(--font-display)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                                  <FileText className="w-3 h-3" style={{ color: "var(--color-primary)" }} />Full incident report
+                                </h4>
+                                <div className="prose prose-invert prose-xs max-w-none p-4 text-xs leading-relaxed overflow-y-auto max-h-[350px]"
+                                  style={{ background: "rgba(0,240,255,0.03)", border: "1px solid rgba(0,240,255,0.08)", borderRadius: "var(--radius-md)" }}>
+                                  <ReactMarkdown>{inc.report}</ReactMarkdown>
+                                </div>
+                              </div>
+                            )}
+
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                );
+              })}
             </motion.div>
           )}
 

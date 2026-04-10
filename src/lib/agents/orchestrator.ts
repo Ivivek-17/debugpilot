@@ -186,19 +186,27 @@ export async function* orchestrate(
 
   // ── Step 5: Persist & Complete ───────────────────────────────
   
-  if (bge && e5) {
-    try {
-      await supabase.from("bug_history").insert({
-        log_text: logs,
-        diagnosis: triage.summary,
-        fix_title: criticResult?.selected_fix_title || "Unknown",
-        fix_details: criticResult || {},
-        embedding_bge: bge,
-        embedding_e5: e5
-      });
-    } catch (e) {
-      console.error("Supabase Insert Error:", e);
+  // Always persist to Supabase (embeddings are optional for history)
+  try {
+    const insertPayload: Record<string, unknown> = {
+      log_text: logs,
+      diagnosis: triage.summary,
+      fix_title: criticResult?.selected_fix_title || "Unknown",
+      fix_details: criticResult || {},
+      report: reportText,
+      domain: triage.domain,
+      fixes: currentFixes,
+    };
+    // Only attach embeddings if they were successfully generated
+    if (bge) insertPayload.embedding_bge = bge;
+    if (e5) insertPayload.embedding_e5 = e5;
+
+    const { error: insertError } = await supabase.from("bug_history").insert(insertPayload);
+    if (insertError) {
+      console.error("Supabase Insert Error:", insertError.message);
     }
+  } catch (e) {
+    console.error("Supabase Insert Error:", e);
   }
 
   const incident: Incident = {
